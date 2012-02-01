@@ -286,7 +286,7 @@ static int __init xen_spinlock_debugfs(void)
 	debugfs_create_u64("time_blocked", 0444, d_spin_debug,
 			   &spinlock_stats.time_blocked);
 
-	xen_debugfs_create_u32_array("histo_blocked", 0444, d_spin_debug,
+	debugfs_create_u32_array("histo_blocked", 0444, d_spin_debug,
 				     spinlock_stats.histo_spin_blocked, HISTO_BUCKETS + 1);
 
 	return 0;

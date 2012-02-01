@@ -1109,6 +1109,13 @@ support.  Instead it is reported via
 if that returns true and you use KVM_CREATE_IRQCHIP, or if you emulate the
 feature in userspace, then you can enable the feature for KVM_SET_CPUID2.
 
+Paravirtualized ticket spinlocks can be enabled in guest by checking whether
+support exists in host via,
+
+  ioctl(KVM_CHECK_EXTENSION, KVM_CAP_PVLOCK_KICK)
+
+if this call return true, guest can use the feature.
+
 4.47 KVM_PPC_GET_PVINFO
 
 Capability: KVM_CAP_PPC_GET_PVINFO

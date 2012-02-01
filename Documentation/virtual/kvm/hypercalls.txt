@@ -1,0 +1,54 @@
+KVM Hypercalls Documentation
+===========================
+Template for documentation is
+The documenenation for hypercalls should inlcude
+1. Hypercall name, value.
+2. Architecture(s)
+3. Purpose
+
+
+1. KVM_HC_VAPIC_POLL_IRQ
+------------------------
+value: 1
+Architecture: x86
+Purpose:
+
+2. KVM_HC_MMU_OP
+------------------------
+value: 2
+Architecture: x86
+Purpose: Support MMU operations such as writing to PTE,
+flushing TLB, release PT.
+
+3. KVM_HC_FEATURES
+------------------------
+value: 3
+Architecture: PPC
+Purpose:
+
+4. KVM_HC_PPC_MAP_MAGIC_PAGE
+------------------------
+value: 4
+Architecture: PPC
+Purpose: To enable communication between the hypervisor and guest there is a
+new shared page that contains parts of supervisor visible register state.
+The guest can map this shared page using this hypercall.
+
+5. KVM_HC_KICK_CPU
+------------------------
+value: 5
+Architecture: x86
+Purpose: Hypercall used to wakeup a vcpu from HLT state
+
+Usage example : A vcpu of a paravirtualized guest that is busywaiting in guest
+kernel mode for an event to occur (ex: a spinlock to become available)
+can execute HLT instruction once it has busy-waited for more than a
+threshold time-interval. Execution of HLT instruction would cause
+the hypervisor to put the vcpu to sleep (unless yield_on_hlt=0) until occurence
+of an appropriate event. Another vcpu of the same guest can wakeup the sleeping
+vcpu by issuing KVM_HC_KICK_CPU hypercall, specifying APIC ID of the vcpu to be
+wokenup.
+
+TODO:
+1. more information on input and output needed?
+2. Add more detail to purpose of hypercalls.

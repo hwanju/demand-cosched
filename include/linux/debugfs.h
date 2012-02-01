@@ -74,6 +74,10 @@ struct dentry *debugfs_create_blob(const char *name, mode_t mode,
 				  struct dentry *parent,
 				  struct debugfs_blob_wrapper *blob);
 
+struct dentry *debugfs_create_u32_array(const char *name, mode_t mode,
+					struct dentry *parent,
+					u32 *array, u32 elements);
+
 bool debugfs_initialized(void);
 
 #else
@@ -191,6 +195,13 @@ static inline struct dentry *debugfs_create_blob(const char *name, mode_t mode,
 static inline bool debugfs_initialized(void)
 {
 	return false;
+}
+
+struct dentry *debugfs_create_u32_array(const char *name, mode_t mode,
+					struct dentry *parent,
+					u32 *array, u32 elements)
+{
+	return ERR_PTR(-ENODEV);
 }
 
 #endif
