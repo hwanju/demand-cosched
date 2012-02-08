@@ -690,6 +690,12 @@ account_entity_enqueue(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		list_add(&se->group_node, &cfs_rq->tasks);
 	}
 	cfs_rq->nr_running++;
+#ifdef CONFIG_BALANCE_SCHED
+        if (se->is_vcpu) {
+                se->is_vcpu = VCPU_SE;
+                cfs_rq->nr_running_vcpus++;
+        }
+#endif
 }
 
 static void
@@ -703,6 +709,10 @@ account_entity_dequeue(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		list_del_init(&se->group_node);
 	}
 	cfs_rq->nr_running--;
+#ifdef CONFIG_BALANCE_SCHED
+        if (se->is_vcpu == VCPU_SE)
+                cfs_rq->nr_running_vcpus--;
+#endif
 }
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -2784,6 +2794,9 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
 		     int *all_pinned)
 {
 	int tsk_cache_hot = 0;
+#ifdef CONFIG_BALANCE_SCHED
+        int soft_affinity = 0;
+#endif
 	/*
 	 * We do not migrate tasks that are:
 	 * 1) running (obviously), or
@@ -2791,10 +2804,22 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
 	 * 3) are cache-hot on their current CPU.
 	 */
 	if (!cpumask_test_cpu(this_cpu, tsk_cpus_allowed(p))) {
+#ifdef CONFIG_BALANCE_SCHED
+                if (is_migratable_balsched(p->se.cfs_rq->tg)) {
+                        if (!is_strict_balsched(p->se.cfs_rq->tg) || 
+                            p->se.cfs_rq->tg->se[this_cpu]->my_q->nr_running_vcpus == 0) { 
+                                soft_affinity = 1;
+                                goto skip_affinity_violation;
+                        }
+                }
+#endif
 		schedstat_inc(p, se.statistics.nr_failed_migrations_affine);
 		return 0;
 	}
 	*all_pinned = 0;
+#ifdef CONFIG_BALANCE_SCHED
+skip_affinity_violation:
+#endif
 
 	if (task_running(rq, p)) {
 		schedstat_inc(p, se.statistics.nr_failed_migrations_running);
@@ -2816,13 +2841,27 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
 			schedstat_inc(p, se.statistics.nr_forced_migrations);
 		}
 #endif
+#ifdef CONFIG_BALANCE_SCHED
+                goto migrate_ok;
+#else
 		return 1;
+#endif
 	}
 
 	if (tsk_cache_hot) {
 		schedstat_inc(p, se.statistics.nr_failed_migrations_hot);
 		return 0;
 	}
+#ifdef CONFIG_BALANCE_SCHED
+migrate_ok:
+        if (soft_affinity) {
+                cpu_set(this_cpu, p->cpus_allowed);
+                *all_pinned = 0;
+                trace_balsched_clear_affinity(p, 
+                                p->se.cfs_rq->tg->se[this_cpu]->my_q->nr_running_vcpus, 
+                                p->cpus_allowed.bits[0]); 
+        }
+#endif
 	return 1;
 }
 

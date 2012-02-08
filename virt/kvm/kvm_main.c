@@ -1660,6 +1660,9 @@ static int kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id)
 
 	preempt_notifier_init(&vcpu->preempt_notifier, &kvm_preempt_ops);
 
+#ifdef CONFIG_BALANCE_SCHED
+        current->se.is_vcpu = NEW_VCPU_SE;
+#endif
 	r = kvm_arch_vcpu_setup(vcpu);
 	if (r)
 		goto vcpu_destroy;

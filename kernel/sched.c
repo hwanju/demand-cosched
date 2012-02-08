@@ -251,6 +251,18 @@ struct cfs_rq;
 
 static LIST_HEAD(task_groups);
 
+#ifdef CONFIG_BALANCE_SCHED
+enum balsched_mode {
+        BALSCHED_DISABLED = 0,
+        BALSCHED_VCPUS,                 /* 1 */
+        BALSCHED_VCPUS_MIGRATION,       /* 2 */
+        BALSCHED_VCPUS_FAIR,            /* 3 */
+};
+#define is_strict_balsched(tg)          (tg->balsched == BALSCHED_VCPUS || tg->balsched == BALSCHED_VCPUS_MIGRATION)
+#define is_migratable_balsched(tg)      (tg->balsched == BALSCHED_VCPUS_MIGRATION || tg->balsched == BALSCHED_VCPUS_FAIR)
+#define is_fair_balsched(tg)            (tg->balsched == BALSCHED_VCPUS_FAIR)
+#endif
+
 struct cfs_bandwidth {
 #ifdef CONFIG_CFS_BANDWIDTH
 	raw_spinlock_t lock;
@@ -301,6 +313,10 @@ struct task_group {
 	struct autogroup *autogroup;
 #endif
 
+#ifdef CONFIG_BALANCE_SCHED
+        enum balsched_mode balsched;
+#endif
+
 	struct cfs_bandwidth cfs_bandwidth;
 };
 
@@ -336,6 +352,9 @@ struct task_group root_task_group;
 struct cfs_rq {
 	struct load_weight load;
 	unsigned long nr_running, h_nr_running;
+#ifdef CONFIG_BALANCE_SCHED
+        unsigned long nr_running_vcpus; 
+#endif
 
 	u64 exec_clock;
 	u64 min_vruntime;
@@ -2543,6 +2562,35 @@ static int select_fallback_rq(int cpu, struct task_struct *p)
 	int dest_cpu;
 	const struct cpumask *nodemask = cpumask_of_node(cpu_to_node(cpu));
 
+#ifdef CONFIG_BALANCE_SCHED
+        struct task_group *tg = p->se.cfs_rq->tg;
+        if (is_fair_balsched(tg)) {
+                unsigned long wl, min_weight = -1UL;
+                int min_weight_cpu = -1;
+                /* Look for allowed, online CPU in same node. */
+                for_each_cpu_and(dest_cpu, nodemask, cpu_active_mask) {
+                        if (cpumask_test_cpu(dest_cpu, &p->cpus_allowed)) {
+                                wl = weighted_cpuload(dest_cpu);
+                                if (wl < min_weight) {
+                                        min_weight = wl;
+                                        min_weight_cpu = dest_cpu;
+                                }
+                        }
+                }
+                if (min_weight_cpu >= 0) 
+                        return min_weight_cpu;
+                for_each_cpu_and(dest_cpu, &p->cpus_allowed, cpu_active_mask) {
+                        wl = weighted_cpuload(dest_cpu);
+                        if (wl < min_weight) {
+                                min_weight = wl;
+                                min_weight_cpu = dest_cpu;
+                        }
+                }
+                if (min_weight_cpu >= 0) 
+                        return min_weight_cpu;
+                goto not_found;
+        }
+#endif  /* CONFIG_BALANCE_SCHED */
 	/* Look for allowed, online CPU in same node. */
 	for_each_cpu_and(dest_cpu, nodemask, cpu_active_mask)
 		if (cpumask_test_cpu(dest_cpu, tsk_cpus_allowed(p)))
@@ -2553,6 +2601,9 @@ static int select_fallback_rq(int cpu, struct task_struct *p)
 	if (dest_cpu < nr_cpu_ids)
 		return dest_cpu;
 
+#ifdef CONFIG_BALANCE_SCHED
+not_found:
+#endif
 	/* No more Mr. Nice Guy. */
 	dest_cpu = cpuset_cpus_allowed_fallback(p);
 	/*
@@ -2568,13 +2619,93 @@ static int select_fallback_rq(int cpu, struct task_struct *p)
 	return dest_cpu;
 }
 
+#ifdef CONFIG_BALANCE_SCHED
+unsigned int __read_mostly sysctl_balsched_load_imbalance_pct = 150;
+static inline int cause_load_imbalance(struct task_group *tg, int cpu, 
+                unsigned long weight, unsigned long cur_total_weight)
+{
+        unsigned long weight_per_cpu;
+        s64 expected_load, cpu_load;
+        if (!is_fair_balsched(tg) || !cur_total_weight || 
+            !weighted_cpuload(cpu) || !sysctl_balsched_load_imbalance_pct)
+                return 0;
+        expected_load = effective_load(tg, cpu, weight, weight);
+        cpu_load = weighted_cpuload(cpu) + expected_load;
+        cur_total_weight += expected_load - effective_load(tg, cpu, 0, weight);
+        weight_per_cpu = cur_total_weight / num_active_cpus();
+        weight_per_cpu *= sysctl_balsched_load_imbalance_pct;
+        weight_per_cpu /= 100;
+
+        trace_balsched_cpu_load(cpu, weight, expected_load, cur_total_weight, cpu_load, weight_per_cpu);
+
+        return cpu_load > weight_per_cpu;
+}
+
+static inline void try_to_balance_affine(struct task_struct *p)
+{
+        int i; 
+        struct sched_entity *se = &p->se;
+        struct task_group *tg = se->cfs_rq->tg;
+        cpumask_t balanced_cpus_allowed;
+        int affinity_updated = 0;
+        unsigned long cur_total_weight = 0;
+
+        if (tg->balsched == BALSCHED_DISABLED || !se->is_vcpu)
+                return;
+
+        cpus_clear(balanced_cpus_allowed);
+        if (is_fair_balsched(tg)) {
+                for_each_cpu(i, cpu_active_mask)
+                        cur_total_weight += weighted_cpuload(i) + effective_load(tg, i, 0, se->load.weight);
+        }
+        if (is_strict_balsched(tg) && likely(!se->on_rq)) {
+                for_each_cpu(i, cpu_active_mask) {
+                        /* although tg->se[i]->on_rq is true, its queue may have no vcpu */
+                        if (likely(tg->se[i] && tg->se[i]->my_q) && !tg->se[i]->my_q->nr_running_vcpus) {
+                                cpu_set(i, balanced_cpus_allowed);
+                                affinity_updated = 1;
+                        }
+                        trace_balsched_cpu_stat(p, i, weighted_cpuload(i), -1, 
+                                        tg->se[i]->my_q->nr_running_vcpus);
+                }
+        }
+        else if (is_fair_balsched(tg) && likely(!se->on_rq)) {
+                int load_imbalance = 0;
+                for_each_cpu(i, cpu_active_mask) {
+                        /* although tg->se[i]->on_rq is true, its queue may have no vcpu */
+                        if (likely(tg->se[i] && tg->se[i]->my_q)) {
+                                if (!tg->se[i]->my_q->nr_running_vcpus &&
+                                                !(load_imbalance = cause_load_imbalance(tg, i, se->load.weight, cur_total_weight)))
+                                        cpu_set(i, balanced_cpus_allowed);
+                                affinity_updated = 1;
+                        }
+                        trace_balsched_cpu_stat(p, i, weighted_cpuload(i), load_imbalance, 
+                                        tg->se[i]->my_q->nr_running_vcpus);
+                }
+        }
+
+        /* if no idle cpu exists, return the affinity to all cpus */
+        if (!affinity_updated)
+                cpus_setall(balanced_cpus_allowed);
+        trace_balsched_affinity(p, affinity_updated, balanced_cpus_allowed.bits[0]);
+
+        p->cpus_allowed = balanced_cpus_allowed;
+}
+#endif
+
 /*
  * The caller (fork, wakeup) owns p->pi_lock, ->cpus_allowed is stable.
  */
 static inline
 int select_task_rq(struct task_struct *p, int sd_flags, int wake_flags)
 {
+#ifdef CONFIG_BALANCE_SCHED
+        int cpu; 
+        try_to_balance_affine(p);
+	cpu = p->sched_class->select_task_rq(p, sd_flags, wake_flags);
+#else
 	int cpu = p->sched_class->select_task_rq(p, sd_flags, wake_flags);
+#endif
 
 	/*
 	 * In order not to call set_task_cpu() on a blocking task we need
@@ -9426,6 +9557,29 @@ static int cpu_stats_show(struct cgroup *cgrp, struct cftype *cft,
 #endif /* CONFIG_CFS_BANDWIDTH */
 #endif /* CONFIG_FAIR_GROUP_SCHED */
 
+#ifdef CONFIG_BALANCE_SCHED
+static int cpu_balsched_write_u64(struct cgroup *cgrp, struct cftype *cftype,
+                u64 shareval)
+{
+        struct task_group *tg = cgroup_tg(cgrp);
+
+	/* We can't enable balance scheduling for the root cgroup. */
+	if (!tg->se[0])
+		return -EINVAL;
+
+        tg->balsched = (enum balsched_mode) shareval;
+
+        return 0;
+}
+
+static u64 cpu_balsched_read_u64(struct cgroup *cgrp, struct cftype *cft)
+{
+        struct task_group *tg = cgroup_tg(cgrp);
+
+        return (u64) tg->balsched;
+}
+#endif
+
 #ifdef CONFIG_RT_GROUP_SCHED
 static int cpu_rt_runtime_write(struct cgroup *cgrp, struct cftype *cft,
 				s64 val)
@@ -9473,6 +9627,13 @@ static struct cftype cpu_files[] = {
 		.name = "stat",
 		.read_map = cpu_stats_show,
 	},
+#endif
+#ifdef CONFIG_BALANCE_SCHED
+        {
+                .name = "balsched",
+                .read_u64 = cpu_balsched_read_u64,
+                .write_u64 = cpu_balsched_write_u64,
+        },
 #endif
 #ifdef CONFIG_RT_GROUP_SCHED
 	{

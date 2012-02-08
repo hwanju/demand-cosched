@@ -1166,6 +1166,10 @@ struct sched_statistics {
 };
 #endif
 
+#ifdef CONFIG_BALANCE_SCHED
+extern unsigned int sysctl_balsched_load_imbalance_pct;
+#endif
+
 struct sched_entity {
 	struct load_weight	load;		/* for load-balancing */
 	struct rb_node		run_node;
@@ -1189,6 +1193,11 @@ struct sched_entity {
 	struct cfs_rq		*cfs_rq;
 	/* rq "owned" by this entity/group: */
 	struct cfs_rq		*my_q;
+#endif
+#ifdef CONFIG_BALANCE_SCHED
+#define VCPU_SE         1
+#define NEW_VCPU_SE     2
+        int is_vcpu;
 #endif
 };
 
