@@ -259,7 +259,7 @@ enum balsched_mode {
         BALSCHED_VCPUS_FAIR,            /* 3 */
 };
 #define is_strict_balsched(tg)          (tg->balsched == BALSCHED_VCPUS || tg->balsched == BALSCHED_VCPUS_MIGRATION)
-#define is_migratable_balsched(tg)      (tg->balsched == BALSCHED_VCPUS_MIGRATION || tg->balsched == BALSCHED_VCPUS_FAIR)
+#define is_updatable_balsched(tg)       (tg->balsched == BALSCHED_VCPUS_MIGRATION || tg->balsched == BALSCHED_VCPUS_FAIR)
 #define is_fair_balsched(tg)            (tg->balsched == BALSCHED_VCPUS_FAIR)
 #endif
 
