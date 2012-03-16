@@ -94,7 +94,6 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 
 #ifdef CONFIG_BALANCE_SCHED
 #include <asm/irq_vectors.h>
-#if 0
         if (irq->ipi == 1) {
                 if (irq->vector == RESCHEDULE_VECTOR)
                         set_ipi_sender(current, IPI_TYPE_RESCHED);
@@ -105,7 +104,6 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
                         set_ipi_sender(current, IPI_TYPE_OTHERS);
 
         }
-#endif
 #endif
 	kvm_for_each_vcpu(i, vcpu, kvm) {
 		if (!kvm_apic_present(vcpu))
