@@ -1168,6 +1168,15 @@ struct sched_statistics {
 
 #ifdef CONFIG_BALANCE_SCHED
 extern unsigned int sysctl_balsched_load_imbalance_pct;
+
+extern unsigned int sysctl_sched_vm_preempt_mode;
+
+extern unsigned int sysctl_sched_urgent_vcpu_first;
+extern unsigned int sysctl_sched_urgent_tslice_ns;
+extern unsigned int sysctl_sched_urgent_latency_ns;
+
+extern void set_ipi_sender(struct task_struct *p, int type);
+extern int list_add_urgent_vcpu(struct task_struct *p);
 #endif
 
 struct sched_entity {
@@ -1198,6 +1207,15 @@ struct sched_entity {
 #define VCPU_SE         1
 #define NEW_VCPU_SE     2
         int is_vcpu;
+        /* if set, a ipi has been sent during this timeslice 
+         * and the followings are types */
+#define IPI_TYPE_RESCHED        0x1
+#define IPI_TYPE_TLB            0x2
+#define IPI_TYPE_OTHERS         0x4
+        int ipi_sent;
+
+        struct list_head urgent_vcpu_node;
+        int urgent_vcpu;
 #endif
 };
 
@@ -2053,10 +2071,6 @@ static inline void sched_autogroup_exit(struct signal_struct *sig) { }
 
 #ifdef CONFIG_CFS_BANDWIDTH
 extern unsigned int sysctl_sched_cfs_bandwidth_slice;
-#endif
-
-#ifdef CONFIG_BALANCE_SCHED
-extern unsigned int sysctl_sched_vm_preempt_mode;
 #endif
 
 #ifdef CONFIG_RT_MUTEXES

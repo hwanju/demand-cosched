@@ -105,6 +105,8 @@ unsigned int sysctl_sched_cfs_bandwidth_slice = 5000UL;
 
 #ifdef CONFIG_BALANCE_SCHED
 unsigned int sysctl_sched_vm_preempt_mode = 0UL;
+unsigned int __read_mostly sysctl_sched_urgent_tslice_ns        = 100000UL;     /* default 100us */
+unsigned int __read_mostly sysctl_sched_urgent_latency_ns       = 24000000UL;   /* FIXME: default 24000000ns */
 #endif
 
 static const struct sched_class fair_sched_class;
@@ -366,6 +368,45 @@ static void update_min_vruntime(struct cfs_rq *cfs_rq)
 #endif
 }
 
+#ifdef CONFIG_BALANCE_SCHED
+int __list_add_urgent_vcpu(struct task_struct *p, struct sched_entity *se, int force_enqueue)
+{
+        struct cfs_rq *cfs_rq = se->cfs_rq;
+        int need_resched = 0;
+        int pending = 1;
+
+        for_each_sched_entity(se) {
+                cfs_rq = se->cfs_rq;
+
+                if (!force_enqueue && cfs_rq->curr == se) {
+                        if (entity_is_task(se))
+                                pending = 0;    /* delivered promptly */
+                        continue;
+                }
+
+                /* urgent_vcpu flag indicates ipi is pending or is being processed 
+                 * Two purposes: 1) when enqueued, also enqueued into urgent_vcpu_list 
+                 *               2) protect from being preempted during ipi processing, 
+                 *                  but preemption by tick is allowed
+                 */
+                se->urgent_vcpu = 1;
+
+                trace_ipi_list_debug(1, p, se->cfs_rq->rq->cpu, se->on_rq, cfs_rq->curr != se);
+                if (!force_enqueue && !se->on_rq)
+                        continue;
+                trace_ipi_list_debug(1, p, se->cfs_rq->rq->cpu, se->on_rq, list_empty(&se->urgent_vcpu_node));
+                if (list_empty(&se->urgent_vcpu_node)) {
+                        list_add_tail(&se->urgent_vcpu_node, &cfs_rq->urgent_vcpu_list);
+                        need_resched = 1;
+                }
+        }
+        if (need_resched && !cfs_rq->rq->curr->se.urgent_vcpu)
+                resched_task(cfs_rq->rq->curr);
+
+        return pending;
+}
+#endif
+
 /*
  * Enqueue an entity into the rb-tree:
  */
@@ -403,6 +444,10 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 	rb_link_node(&se->run_node, parent, link);
 	rb_insert_color(&se->run_node, &cfs_rq->tasks_timeline);
+#ifdef CONFIG_BALANCE_SCHED
+        if (se->urgent_vcpu) 
+                __list_add_urgent_vcpu(entity_is_task(se) ? task_of(se) : NULL, se, 1);
+#endif
 }
 
 static void __dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
@@ -1124,6 +1169,13 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 
 	update_min_vruntime(cfs_rq);
 	update_cfs_shares(cfs_rq);
+#ifdef CONFIG_BALANCE_SCHED
+        /* in case of migration, safely delete from ipi pending list */
+        if (likely(se->urgent_vcpu_node.next) && !list_empty(&se->urgent_vcpu_node)) {
+                trace_ipi_list_debug(2, entity_is_task(se) ? task_of(se) : NULL, se->cfs_rq->rq->cpu, 1, 1);
+                list_del_init(&se->urgent_vcpu_node);
+        }
+#endif
 }
 
 /*
@@ -1136,6 +1188,10 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
 	struct sched_entity *se;
 	s64 delta;
 
+#ifdef CONFIG_BALANCE_SCHED
+        if (curr->urgent_vcpu)
+		resched_task(rq_of(cfs_rq)->curr);
+#endif
 	ideal_runtime = sched_slice(cfs_rq, curr);
 	delta_exec = curr->sum_exec_runtime - curr->prev_sum_exec_runtime;
 	if (delta_exec > ideal_runtime) {
@@ -1199,6 +1255,23 @@ set_next_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 static int
 wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se);
 
+#ifdef CONFIG_BALANCE_SCHED
+static int can_urgently_preempt(struct sched_entity *left, struct sched_entity *se)
+{
+        trace_ipi_list_debug(4, entity_is_task(se) ? task_of(se) : NULL, 
+                        se->cfs_rq->rq->cpu, se->vruntime - se->cfs_rq->min_vruntime, se->vruntime - left->vruntime);
+
+        if (entity_is_task(se))
+                return 1;
+        if (se->vruntime - left->vruntime < sysctl_sched_urgent_latency_ns)
+                return 1;
+
+        trace_ipi_list_debug(5, entity_is_task(se) ? task_of(se) : NULL, 
+                        se->cfs_rq->rq->cpu, se->vruntime - se->cfs_rq->min_vruntime, se->vruntime - left->vruntime);
+        return 0;
+}
+#endif
+
 /*
  * Pick the next process, keeping these things in mind, in this order:
  * 1) keep things fair between processes/task groups
@@ -1210,6 +1283,20 @@ static struct sched_entity *pick_next_entity(struct cfs_rq *cfs_rq)
 {
 	struct sched_entity *se = __pick_first_entity(cfs_rq);
 	struct sched_entity *left = se;
+
+#ifdef CONFIG_BALANCE_SCHED
+        struct sched_entity *p, *n;
+
+        list_for_each_entry_safe(p, n, &cfs_rq->urgent_vcpu_list, urgent_vcpu_node) {
+                trace_ipi_list_debug(3, entity_is_task(p) ? task_of(p) : NULL, se->cfs_rq->rq->cpu, p->on_rq, cfs_rq_of(p) == cfs_rq);
+                if (!p->on_rq || cfs_rq_of(p) != cfs_rq)
+                        list_del_init(&p->urgent_vcpu_node);
+                else if (can_urgently_preempt(left, p)) {
+                        list_del_init(&p->urgent_vcpu_node);
+                        return p;
+                }
+        }
+#endif
 
 	/*
 	 * Avoid running the skip buddy, if running something else can
@@ -1248,6 +1335,14 @@ static void put_prev_entity(struct cfs_rq *cfs_rq, struct sched_entity *prev)
 	 */
 	if (prev->on_rq)
 		update_curr(cfs_rq);
+#ifdef CONFIG_BALANCE_SCHED
+        /* reset only at this point: end of time quantum */
+        prev->ipi_sent = 0;
+
+        if (entity_is_task(prev) || 
+            list_empty(&group_cfs_rq(prev)->urgent_vcpu_list))
+                prev->urgent_vcpu = 0;
+#endif
 
 	/* throttle cfs_rqs exceeding runtime */
 	check_cfs_rq_runtime(cfs_rq);
@@ -1900,6 +1995,11 @@ static void hrtick_start_fair(struct rq *rq, struct task_struct *p)
 
 		hrtick_start(rq, delta);
 	}
+#ifdef CONFIG_BALANCE_SCHED
+        else if (se->urgent_vcpu && 
+                        cpu_active(cpu_of(rq)) && hrtimer_is_hres_active(&rq->hrtick_timer)) 
+                hrtick_start(rq, sysctl_sched_urgent_tslice_ns);
+#endif
 }
 
 /*
@@ -2576,6 +2676,15 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
                 return -1;
         if (sysctl_sched_vm_preempt_mode & 0x2 &&       /* intra-VM disabled */
             curr->is_vcpu && se->is_vcpu)
+                return -1;
+        if (sysctl_sched_vm_preempt_mode & 0x4 &&       /* resched sender disabled */
+            curr->ipi_sent & IPI_TYPE_RESCHED)
+                return -1;
+        if (sysctl_sched_vm_preempt_mode & 0x8 &&       /* tlb sender disabled */
+            curr->ipi_sent & IPI_TYPE_TLB)
+                return -1;
+        if (sysctl_sched_vm_preempt_mode & 0x10 &&      /* all ipi sender disabled */
+            curr->ipi_sent)
                 return -1;
 #endif
 

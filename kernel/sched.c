@@ -367,6 +367,9 @@ struct cfs_rq {
 
 	struct list_head tasks;
 	struct list_head *balance_iterator;
+#ifdef CONFIG_BALANCE_SCHED
+	struct list_head urgent_vcpu_list;
+#endif
 
 	/*
 	 * 'curr' points to currently running entity on this cfs_rq.
@@ -3085,6 +3088,9 @@ static void __sched_fork(struct task_struct *p)
 	p->se.nr_migrations		= 0;
 	p->se.vruntime			= 0;
 	INIT_LIST_HEAD(&p->se.group_node);
+#ifdef CONFIG_BALANCE_SCHED
+	INIT_LIST_HEAD(&p->se.urgent_vcpu_node);
+#endif
 
 #ifdef CONFIG_SCHEDSTATS
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
@@ -8233,6 +8239,9 @@ static void init_cfs_rq(struct cfs_rq *cfs_rq)
 #ifndef CONFIG_64BIT
 	cfs_rq->min_vruntime_copy = cfs_rq->min_vruntime;
 #endif
+#ifdef CONFIG_BALANCE_SCHED
+	INIT_LIST_HEAD(&cfs_rq->urgent_vcpu_list);
+#endif
 }
 
 static void init_rt_rq(struct rt_rq *rt_rq, struct rq *rq)
@@ -8292,6 +8301,9 @@ static void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 	se->my_q = cfs_rq;
 	update_load_set(&se->load, 0);
 	se->parent = parent;
+#ifdef CONFIG_BALANCE_SCHED
+	INIT_LIST_HEAD(&se->urgent_vcpu_node);
+#endif
 }
 #endif
 
@@ -9944,3 +9956,35 @@ struct cgroup_subsys cpuacct_subsys = {
 	.subsys_id = cpuacct_subsys_id,
 };
 #endif	/* CONFIG_CGROUP_CPUACCT */
+
+#ifdef CONFIG_BALANCE_SCHED
+void set_ipi_sender(struct task_struct *p, int type)
+{
+        struct sched_entity *se = &p->se;
+
+        BUG_ON(!se->is_vcpu);     /* assert entity is vcpu */
+        for_each_sched_entity(se)
+                se->ipi_sent |= type;
+}
+EXPORT_SYMBOL_GPL(set_ipi_sender);
+
+unsigned int __read_mostly sysctl_sched_urgent_vcpu_first = 0;
+EXPORT_SYMBOL_GPL(sysctl_sched_urgent_vcpu_first);
+
+int list_add_urgent_vcpu(struct task_struct *p)
+{
+        struct rq *rq;
+        unsigned long flags;
+        int pending;
+
+        if (!sysctl_sched_urgent_vcpu_first)
+                return 0;
+
+        rq = task_rq_lock(p, &flags);
+        pending = __list_add_urgent_vcpu(p, &p->se, 0);
+        task_rq_unlock(rq, p, &flags); 
+
+        return pending;
+}
+EXPORT_SYMBOL_GPL(list_add_urgent_vcpu);
+#endif

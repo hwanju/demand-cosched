@@ -29,6 +29,10 @@
 #include <asm/iosapic.h>
 #endif
 
+#ifdef CONFIG_BALANCE_SCHED
+#include <linux/sched.h>
+#endif
+
 #include "irq.h"
 
 #include "ioapic.h"
@@ -88,6 +92,21 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 			kvm_is_dm_lowest_prio(irq))
 		printk(KERN_INFO "kvm: apic: phys broadcast and lowest prio\n");
 
+#ifdef CONFIG_BALANCE_SCHED
+#include <asm/irq_vectors.h>
+#if 0
+        if (irq->ipi == 1) {
+                if (irq->vector == RESCHEDULE_VECTOR)
+                        set_ipi_sender(current, IPI_TYPE_RESCHED);
+                else if (irq->vector >= INVALIDATE_TLB_VECTOR_START &&
+                         irq->vector <= INVALIDATE_TLB_VECTOR_END)
+                        set_ipi_sender(current, IPI_TYPE_TLB);
+                else
+                        set_ipi_sender(current, IPI_TYPE_OTHERS);
+
+        }
+#endif
+#endif
 	kvm_for_each_vcpu(i, vcpu, kvm) {
 		if (!kvm_apic_present(vcpu))
 			continue;
@@ -97,6 +116,25 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 			continue;
 
 		if (!kvm_is_dm_lowest_prio(irq)) {
+#ifdef CONFIG_KVM_VDI
+                        if (irq->ipi == 1 && i != src->vcpu->vcpu_id && 
+                            (sysctl_sched_urgent_vcpu_first && 
+                             irq->vector >= INVALIDATE_TLB_VECTOR_START &&
+                             irq->vector <= INVALIDATE_TLB_VECTOR_END)) {
+                                struct task_struct *task = NULL;
+                                struct pid *pid;
+
+                                rcu_read_lock();
+                                pid = rcu_dereference(vcpu->pid);
+                                if (pid)
+                                        task = get_pid_task(vcpu->pid, PIDTYPE_PID);
+                                rcu_read_unlock();
+                                if (task) {
+                                        list_add_urgent_vcpu(task);
+                                        put_task_struct(task);
+                                }
+                        }
+#endif
 			if (r < 0)
 				r = 0;
 			r += kvm_apic_set_irq(vcpu, irq);
@@ -133,6 +171,9 @@ int kvm_set_msi(struct kvm_kernel_irq_routing_entry *e,
 	irq.delivery_mode = e->msi.data & 0x700;
 	irq.level = 1;
 	irq.shorthand = 0;
+#ifdef CONFIG_BALANCE_SCHED
+        irq.ipi = 0;
+#endif
 
 	/* TODO Deal with RH bit of MSI message address */
 	return kvm_irq_delivery_to_apic(kvm, NULL, &irq);

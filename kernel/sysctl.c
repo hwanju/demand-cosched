@@ -348,15 +348,6 @@ static struct ctl_table kern_table[] = {
 		.extra2		= &one,
 	},
 #endif
-#ifdef CONFIG_BALANCE_SCHED
-	{
-		.procname	= "balsched_load_imbalance_pct",
-		.data		= &sysctl_balsched_load_imbalance_pct,
-		.maxlen		= sizeof(unsigned int),
-		.mode		= 0644,
-		.proc_handler	= proc_dointvec,
-	},
-#endif
 	{
 		.procname	= "sched_rt_period_us",
 		.data		= &sysctl_sched_rt_period,
@@ -394,11 +385,41 @@ static struct ctl_table kern_table[] = {
 #endif
 #ifdef CONFIG_BALANCE_SCHED
 	{
+		.procname	= "balsched_load_imbalance_pct",
+		.data		= &sysctl_balsched_load_imbalance_pct,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
 		.procname	= "sched_vm_preempt_mode",
 		.data		= &sysctl_sched_vm_preempt_mode,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "sched_urgent_vcpu_first",
+		.data		= &sysctl_sched_urgent_vcpu_first,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &one,
+	},
+	{
+		.procname	= "sched_urgent_tslice_ns",
+		.data		= &sysctl_sched_urgent_tslice_ns,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+	},
+	{
+		.procname	= "sched_urgent_latency_ns",
+		.data		= &sysctl_sched_urgent_latency_ns,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
 	},
 #endif
 #ifdef CONFIG_PROVE_LOCKING

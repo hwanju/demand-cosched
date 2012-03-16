@@ -178,6 +178,9 @@ static int ioapic_deliver(struct kvm_ioapic *ioapic, int irq)
 	irqe.delivery_mode = entry->fields.delivery_mode << 8;
 	irqe.level = 1;
 	irqe.shorthand = 0;
+#ifdef CONFIG_BALANCE_SCHED
+        irqe.ipi = 0;
+#endif
 
 #ifdef CONFIG_X86
 	/* Always delivery PIT interrupt to vcpu 0 */

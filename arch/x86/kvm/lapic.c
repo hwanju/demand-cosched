@@ -515,6 +515,9 @@ static void apic_send_ipi(struct kvm_lapic *apic)
 		irq.dest_id = icr_high;
 	else
 		irq.dest_id = GET_APIC_DEST_FIELD(icr_high);
+#ifdef CONFIG_BALANCE_SCHED
+        irq.ipi = 1;
+#endif
 
 	trace_kvm_apic_ipi(icr_low, irq.dest_id);
 
