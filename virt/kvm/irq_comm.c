@@ -31,6 +31,7 @@
 
 #ifdef CONFIG_BALANCE_SCHED
 #include <linux/sched.h>
+#include <asm/irq_vectors.h>
 #endif
 
 #include "irq.h"
@@ -93,17 +94,8 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 		printk(KERN_INFO "kvm: apic: phys broadcast and lowest prio\n");
 
 #ifdef CONFIG_BALANCE_SCHED
-#include <asm/irq_vectors.h>
-        if (irq->ipi == 1) {
-                if (irq->vector == RESCHEDULE_VECTOR)
-                        set_ipi_sender(current, IPI_TYPE_RESCHED);
-                else if (irq->vector >= INVALIDATE_TLB_VECTOR_START &&
-                         irq->vector <= INVALIDATE_TLB_VECTOR_END)
-                        set_ipi_sender(current, IPI_TYPE_TLB);
-                else
-                        set_ipi_sender(current, IPI_TYPE_OTHERS);
-
-        }
+        if (irq->ipi == 1 && irq->vector == RESCHEDULE_VECTOR)
+                set_ipi_status(current, RESCHED_IPI_SENT);
 #endif
 	kvm_for_each_vcpu(i, vcpu, kvm) {
 		if (!kvm_apic_present(vcpu))
@@ -114,11 +106,13 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 			continue;
 
 		if (!kvm_is_dm_lowest_prio(irq)) {
-#ifdef CONFIG_KVM_VDI
+#ifdef CONFIG_BALANCE_SCHED
                         if (irq->ipi == 1 && i != src->vcpu->vcpu_id && 
-                            (sysctl_sched_urgent_vcpu_first && 
+                            ((sysctl_sched_urgent_vcpu_first && 
                              irq->vector >= INVALIDATE_TLB_VECTOR_START &&
-                             irq->vector <= INVALIDATE_TLB_VECTOR_END)) {
+                             irq->vector <= INVALIDATE_TLB_VECTOR_END) ||
+                            (sysctl_sched_vm_preempt_mode & 0x4 && 
+                             irq->vector == RESCHEDULE_VECTOR))) {
                                 struct task_struct *task = NULL;
                                 struct pid *pid;
 
@@ -128,7 +122,12 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
                                         task = get_pid_task(vcpu->pid, PIDTYPE_PID);
                                 rcu_read_unlock();
                                 if (task) {
-                                        list_add_urgent_vcpu(task);
+                                        if (sysctl_sched_urgent_vcpu_first && 
+                                            irq->vector >= INVALIDATE_TLB_VECTOR_START &&
+                                            irq->vector <= INVALIDATE_TLB_VECTOR_END)
+                                                list_add_urgent_vcpu(task);
+                                        else 
+                                                set_ipi_status(task, RESCHED_IPI_RECVED);
                                         put_task_struct(task);
                                 }
                         }

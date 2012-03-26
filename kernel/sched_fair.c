@@ -105,6 +105,7 @@ unsigned int sysctl_sched_cfs_bandwidth_slice = 5000UL;
 
 #ifdef CONFIG_BALANCE_SCHED
 unsigned int sysctl_sched_vm_preempt_mode = 0UL;
+EXPORT_SYMBOL_GPL(sysctl_sched_vm_preempt_mode);
 unsigned int __read_mostly sysctl_sched_urgent_tslice_ns        = 100000UL;     /* default 100us */
 unsigned int __read_mostly sysctl_sched_urgent_latency_ns       = 24000000UL;   /* FIXME: default 24000000ns */
 #endif
@@ -1337,7 +1338,7 @@ static void put_prev_entity(struct cfs_rq *cfs_rq, struct sched_entity *prev)
 		update_curr(cfs_rq);
 #ifdef CONFIG_BALANCE_SCHED
         /* reset only at this point: end of time quantum */
-        prev->ipi_sent = 0;
+        prev->ipi_status = 0;
 
         if (entity_is_task(prev) || 
             list_empty(&group_cfs_rq(prev)->urgent_vcpu_list))
@@ -2677,14 +2678,11 @@ wakeup_preempt_entity(struct sched_entity *curr, struct sched_entity *se)
         if (sysctl_sched_vm_preempt_mode & 0x2 &&       /* intra-VM disabled */
             curr->is_vcpu && se->is_vcpu)
                 return -1;
-        if (sysctl_sched_vm_preempt_mode & 0x4 &&       /* resched sender disabled */
-            curr->ipi_sent & IPI_TYPE_RESCHED)
+        if (sysctl_sched_vm_preempt_mode & 0x4 &&       /* resched reciever */
+            se->ipi_status & RESCHED_IPI_RECVED &&
+            curr->ipi_status & RESCHED_IPI_SENT)
                 return -1;
-        if (sysctl_sched_vm_preempt_mode & 0x8 &&       /* tlb sender disabled */
-            curr->ipi_sent & IPI_TYPE_TLB)
-                return -1;
-        if (sysctl_sched_vm_preempt_mode & 0x10 &&      /* all ipi sender disabled */
-            curr->ipi_sent)
+        if (curr->urgent_vcpu)
                 return -1;
 #endif
 

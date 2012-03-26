@@ -2624,6 +2624,7 @@ not_found:
 
 #ifdef CONFIG_BALANCE_SCHED
 unsigned int __read_mostly sysctl_balsched_load_imbalance_pct = 150;
+#if 0
 static inline int cause_load_imbalance(struct task_group *tg, int cpu, 
                 unsigned long weight, unsigned long cur_total_weight)
 {
@@ -2643,6 +2644,24 @@ static inline int cause_load_imbalance(struct task_group *tg, int cpu,
 
         return cpu_load > weight_per_cpu;
 }
+#endif
+static inline int cause_load_imbalance(struct task_group *tg, int cpu, 
+                unsigned long weight, unsigned long cur_total_weight)
+{
+        unsigned long weight_per_cpu;
+        s64 cpu_load;
+        if (!is_fair_balsched(tg) || !cur_total_weight || 
+            !weighted_cpuload(cpu) || !sysctl_balsched_load_imbalance_pct)
+                return 0;
+        cpu_load = weighted_cpuload(cpu);
+        weight_per_cpu = cur_total_weight / num_active_cpus();
+        weight_per_cpu *= sysctl_balsched_load_imbalance_pct;
+        weight_per_cpu /= 100;
+
+        trace_balsched_cpu_load(cpu, weight, -1, cur_total_weight, cpu_load, weight_per_cpu);
+
+        return cpu_load > weight_per_cpu;
+}
 
 static inline void try_to_balance_affine(struct task_struct *p)
 {
@@ -2659,7 +2678,8 @@ static inline void try_to_balance_affine(struct task_struct *p)
         cpus_clear(balanced_cpus_allowed);
         if (is_fair_balsched(tg)) {
                 for_each_cpu(i, cpu_active_mask)
-                        cur_total_weight += weighted_cpuload(i) + effective_load(tg, i, 0, se->load.weight);
+                        cur_total_weight += weighted_cpuload(i);
+                        //cur_total_weight += weighted_cpuload(i) + effective_load(tg, i, 0, se->load.weight);  // original code
         }
         if (is_strict_balsched(tg) && likely(!se->on_rq)) {
                 for_each_cpu(i, cpu_active_mask) {
@@ -2673,23 +2693,35 @@ static inline void try_to_balance_affine(struct task_struct *p)
                 }
         }
         else if (is_fair_balsched(tg) && likely(!se->on_rq)) {
-                int load_imbalance = 0;
+                cpumask_t light_cpus_allowed, common_mask;
+                cpus_clear(light_cpus_allowed);
+
                 for_each_cpu(i, cpu_active_mask) {
+                        int load_imbalance = 0;
                         /* although tg->se[i]->on_rq is true, its queue may have no vcpu */
-                        if (likely(tg->se[i] && tg->se[i]->my_q)) {
-                                if (!tg->se[i]->my_q->nr_running_vcpus &&
-                                                !(load_imbalance = cause_load_imbalance(tg, i, se->load.weight, cur_total_weight)))
-                                        cpu_set(i, balanced_cpus_allowed);
+                        if (likely(tg->se[i] && tg->se[i]->my_q) && !tg->se[i]->my_q->nr_running_vcpus)
+                                cpu_set(i, balanced_cpus_allowed);
+                        if (!(load_imbalance = cause_load_imbalance(tg, i, se->load.weight, cur_total_weight))) {
+                                cpu_set(i, light_cpus_allowed);
                                 affinity_updated = 1;
                         }
                         trace_balsched_cpu_stat(p, i, weighted_cpuload(i), load_imbalance, 
                                         tg->se[i]->my_q->nr_running_vcpus);
                 }
-        }
 
+                if (affinity_updated) {
+                        if (cpus_intersects(balanced_cpus_allowed, light_cpus_allowed)) {
+                                cpumask_and(&common_mask, &balanced_cpus_allowed, &light_cpus_allowed);
+                                balanced_cpus_allowed = common_mask;
+                        }
+                        else
+                                balanced_cpus_allowed = light_cpus_allowed;
+                }
+        }
         /* if no idle cpu exists, return the affinity to all cpus */
-        if (!affinity_updated)
+        if (unlikely(!affinity_updated))
                 cpus_setall(balanced_cpus_allowed);
+
         trace_balsched_affinity(p, affinity_updated, balanced_cpus_allowed.bits[0]);
 
         p->cpus_allowed = balanced_cpus_allowed;
@@ -9958,15 +9990,14 @@ struct cgroup_subsys cpuacct_subsys = {
 #endif	/* CONFIG_CGROUP_CPUACCT */
 
 #ifdef CONFIG_BALANCE_SCHED
-void set_ipi_sender(struct task_struct *p, int type)
+void set_ipi_status(struct task_struct *p, int type)
 {
         struct sched_entity *se = &p->se;
 
         BUG_ON(!se->is_vcpu);     /* assert entity is vcpu */
-        for_each_sched_entity(se)
-                se->ipi_sent |= type;
+        se->ipi_status |= type;
 }
-EXPORT_SYMBOL_GPL(set_ipi_sender);
+EXPORT_SYMBOL_GPL(set_ipi_status);
 
 unsigned int __read_mostly sysctl_sched_urgent_vcpu_first = 0;
 EXPORT_SYMBOL_GPL(sysctl_sched_urgent_vcpu_first);

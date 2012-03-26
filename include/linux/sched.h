@@ -1175,7 +1175,7 @@ extern unsigned int sysctl_sched_urgent_vcpu_first;
 extern unsigned int sysctl_sched_urgent_tslice_ns;
 extern unsigned int sysctl_sched_urgent_latency_ns;
 
-extern void set_ipi_sender(struct task_struct *p, int type);
+extern void set_ipi_status(struct task_struct *p, int type);
 extern int list_add_urgent_vcpu(struct task_struct *p);
 #endif
 
@@ -1209,10 +1209,9 @@ struct sched_entity {
         int is_vcpu;
         /* if set, a ipi has been sent during this timeslice 
          * and the followings are types */
-#define IPI_TYPE_RESCHED        0x1
-#define IPI_TYPE_TLB            0x2
-#define IPI_TYPE_OTHERS         0x4
-        int ipi_sent;
+#define RESCHED_IPI_SENT        0x1
+#define RESCHED_IPI_RECVED      0x2
+        int ipi_status;
 
         struct list_head urgent_vcpu_node;
         int urgent_vcpu;
