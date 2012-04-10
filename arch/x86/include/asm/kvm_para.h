@@ -24,6 +24,10 @@
 #define KVM_FEATURE_ASYNC_PF		4
 #define KVM_FEATURE_STEAL_TIME		5
 #define KVM_FEATURE_PVLOCK_KICK		6
+#if defined CONFIG_PARAVIRT_LOCK_HOLDER_HOST || \
+    defined CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+#define KVM_FEATURE_LOCK_HOLDER         7
+#endif
 
 /* The last 8 bits are used to indicate how to interpret the flags field
  * in pvclock structure. If no bits are set, all flags are ignored.
@@ -39,6 +43,10 @@
 #define MSR_KVM_SYSTEM_TIME_NEW 0x4b564d01
 #define MSR_KVM_ASYNC_PF_EN 0x4b564d02
 #define MSR_KVM_STEAL_TIME  0x4b564d03
+#if defined CONFIG_PARAVIRT_LOCK_HOLDER_HOST || \
+    defined CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+#define MSR_KVM_LOCK_HOLDER_EIP 0x4b564d04
+#endif
 
 struct kvm_steal_time {
 	__u64 steal;
@@ -195,6 +203,9 @@ void kvm_async_pf_task_wait(u32 token);
 void kvm_async_pf_task_wake(u32 token);
 u32 kvm_read_and_reset_pf_reason(void);
 extern void kvm_disable_steal_time(void);
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+extern void kvm_disable_lock_holder_eip(void);
+#endif
 
 #ifdef CONFIG_PARAVIRT_SPINLOCKS
 void __init kvm_spinlock_init(void);

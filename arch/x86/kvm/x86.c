@@ -824,6 +824,9 @@ static u32 msrs_to_save[] = {
 	MSR_KVM_SYSTEM_TIME_NEW, MSR_KVM_WALL_CLOCK_NEW,
 	HV_X64_MSR_GUEST_OS_ID, HV_X64_MSR_HYPERCALL,
 	HV_X64_MSR_APIC_ASSIST_PAGE, MSR_KVM_ASYNC_PF_EN, MSR_KVM_STEAL_TIME,
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+        MSR_KVM_LOCK_HOLDER_EIP,
+#endif
 	MSR_IA32_SYSENTER_CS, MSR_IA32_SYSENTER_ESP, MSR_IA32_SYSENTER_EIP,
 	MSR_STAR,
 #ifdef CONFIG_X86_64
@@ -1528,6 +1531,22 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 		&vcpu->arch.st.steal, sizeof(struct kvm_steal_time));
 }
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+unsigned long get_lock_holder_eip(struct kvm_vcpu *vcpu)
+{
+        unsigned long lock_holder_eip;
+
+	if (!(vcpu->arch.lh.msr_val & KVM_MSR_ENABLED))
+		return 0;
+
+	if (unlikely(kvm_read_guest_cached(vcpu->kvm, &vcpu->arch.lh.lh_eip,
+		&lock_holder_eip, sizeof(unsigned long))))
+		return 0;
+        return lock_holder_eip;
+}
+EXPORT_SYMBOL_GPL(get_lock_holder_eip);
+#endif
+
 int kvm_set_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 data)
 {
 	switch (msr) {
@@ -1615,9 +1634,6 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 data)
 		break;
 	case MSR_KVM_STEAL_TIME:
 
-		if (unlikely(!sched_info_on()))
-			return 1;
-
 		if (data & KVM_STEAL_RESERVED_MASK)
 			return 1;
 
@@ -1639,7 +1655,20 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 data)
 		kvm_make_request(KVM_REQ_STEAL_UPDATE, vcpu);
 
 		break;
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	case MSR_KVM_LOCK_HOLDER_EIP:
+                /* share bitmask with kvm steal time */
+		if (data & KVM_STEAL_RESERVED_MASK)
+			return 1;
 
+		if (kvm_gfn_to_hva_cache_init(vcpu->kvm, &vcpu->arch.lh.lh_eip,
+							data & KVM_STEAL_VALID_BITS))
+			return 1;
+
+		vcpu->arch.lh.msr_val = data;
+
+		break;
+#endif
 	case MSR_IA32_MCG_CTL:
 	case MSR_IA32_MCG_STATUS:
 	case MSR_IA32_MC0_CTL ... MSR_IA32_MC0_CTL + 4 * KVM_MAX_MCE_BANKS - 1:
@@ -1936,6 +1965,11 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata)
 	case MSR_KVM_STEAL_TIME:
 		data = vcpu->arch.st.msr_val;
 		break;
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	case MSR_KVM_LOCK_HOLDER_EIP:
+		data = vcpu->arch.lh.msr_val;
+		break;
+#endif
 	case MSR_IA32_P5_MC_ADDR:
 	case MSR_IA32_P5_MC_TYPE:
 	case MSR_IA32_MCG_CAP:
@@ -2577,6 +2611,9 @@ static void do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 			     (1 << KVM_FEATURE_NOP_IO_DELAY) |
 			     (1 << KVM_FEATURE_CLOCKSOURCE2) |
 			     (1 << KVM_FEATURE_ASYNC_PF) |
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+			     (1 << KVM_FEATURE_LOCK_HOLDER) |
+#endif
 			     (1 << KVM_FEATURE_CLOCKSOURCE_STABLE_BIT) |
 			     (1 << KVM_FEATURE_PVLOCK_KICK);
 

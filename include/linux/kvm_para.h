@@ -34,6 +34,12 @@ static inline int kvm_para_has_feature(unsigned int feature)
 		return 1;
 	return 0;
 }
+
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+DECLARE_PER_CPU(unsigned long, lock_holder_eip);
+#define spin_acquired()         do { __get_cpu_var(lock_holder_eip) = _RET_IP_; } while(0)
+#define spin_released()         do { __get_cpu_var(lock_holder_eip) = 0; } while(0)
+#endif /* CONFIG_PARAVIRT_LOCK_HOLDER_GUEST */
 #endif /* __KERNEL__ */
 #endif /* __LINUX_KVM_PARA_H */
 

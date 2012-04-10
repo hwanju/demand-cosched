@@ -597,6 +597,21 @@ config PARAVIRT_SPINLOCKS
 
 	  If you are unsure how to answer this question, answer N.
 
+config PARAVIRT_LOCK_HOLDER_GUEST
+	bool "Paravirtualization for notifying spinlock holder (for guest)"
+	depends on PARAVIRT && SMP && EXPERIMENTAL
+	---help---
+          This allows spin lock/unlock codes to notify KVM of which function is
+          acquiring locks or not. 
+
+config PARAVIRT_LOCK_HOLDER_HOST
+	bool "Paravirtualization for identifying spinlock holder (for host)"
+	depends on PARAVIRT && SMP && EXPERIMENTAL
+	---help---
+          This allows the hypervisor to know whether a vcpu holds a lock or not.
+          If a lock is held, it is able to know EIP of the lock holders for 
+          profiling.
+
 config ARCH_NOINLINE_SPIN_UNLOCK
        def_bool PARAVIRT_SPINLOCKS
 

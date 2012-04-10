@@ -404,6 +404,13 @@ struct kvm_vcpu_arch {
 		struct kvm_steal_time steal;
 	} st;
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+        struct {
+                u64 msr_val;
+                struct gfn_to_hva_cache lh_eip;
+        } lh;
+#endif
+
 	u64 last_guest_tsc;
 	u64 last_kernel_ns;
 	u64 last_tsc_nsec;
@@ -728,6 +735,10 @@ unsigned long kvm_get_cr8(struct kvm_vcpu *vcpu);
 void kvm_lmsw(struct kvm_vcpu *vcpu, unsigned long msw);
 void kvm_get_cs_db_l_bits(struct kvm_vcpu *vcpu, int *db, int *l);
 int kvm_set_xcr(struct kvm_vcpu *vcpu, u32 index, u64 xcr);
+
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+unsigned long get_lock_holder_eip(struct kvm_vcpu *vcpu);
+#endif
 
 int kvm_get_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata);
 int kvm_set_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 data);

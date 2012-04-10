@@ -70,6 +70,11 @@ static DEFINE_PER_CPU(struct kvm_para_state, para_state);
 static DEFINE_PER_CPU(struct kvm_vcpu_pv_apf_data, apf_reason) __aligned(64);
 static DEFINE_PER_CPU(struct kvm_steal_time, steal_time) __aligned(64);
 static int has_steal_clock = 0;
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+DEFINE_PER_CPU(unsigned long, lock_holder_eip) __aligned(64);
+EXPORT_PER_CPU_SYMBOL_GPL(lock_holder_eip);
+static int has_lock_holder_eip = 0;
+#endif
 
 static struct kvm_para_state *kvm_para_state(void)
 {
@@ -468,6 +473,24 @@ static void kvm_register_steal_time(void)
 		cpu, __pa(st));
 }
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+static void kvm_register_lock_holder_eip(void)
+{
+	u64 pa = __pa(&__get_cpu_var(lock_holder_eip));
+
+	wrmsrl(MSR_KVM_LOCK_HOLDER_EIP, (pa | KVM_MSR_ENABLED));
+	printk(KERN_INFO "kvm-lockholder: cpu %d, msr %llx\n",
+		smp_processor_id(), pa);
+}
+void kvm_disable_lock_holder_eip(void)
+{
+	if (!has_lock_holder_eip)
+		return;
+
+	wrmsr(MSR_KVM_LOCK_HOLDER_EIP, 0, 0);
+}
+#endif
+
 void __cpuinit kvm_guest_cpu_init(void)
 {
 	if (!kvm_para_available())
@@ -487,6 +510,10 @@ void __cpuinit kvm_guest_cpu_init(void)
 
 	if (has_steal_clock)
 		kvm_register_steal_time();
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+        if (has_lock_holder_eip)
+                kvm_register_lock_holder_eip();
+#endif
 }
 
 static void kvm_pv_disable_apf(void *unused)
@@ -559,6 +586,9 @@ static void kvm_guest_cpu_offline(void *dummy)
 	kvm_disable_steal_time();
 	kvm_pv_disable_apf(NULL);
 	apf_task_wake_all();
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+        kvm_disable_lock_holder_eip();
+#endif
 }
 
 static int __cpuinit kvm_cpu_notify(struct notifier_block *self,
@@ -609,6 +639,10 @@ void __init kvm_guest_init(void)
 		has_steal_clock = 1;
 		pv_time_ops.steal_clock = kvm_steal_clock;
 	}
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+	if (kvm_para_has_feature(KVM_FEATURE_LOCK_HOLDER))
+		has_lock_holder_eip = 1;
+#endif
 
 #ifdef CONFIG_SMP
 	smp_ops.smp_prepare_boot_cpu = kvm_smp_prepare_boot_cpu;

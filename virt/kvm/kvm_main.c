@@ -61,6 +61,14 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/kvm.h>
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+static int trace_guest_lock_holder;
+module_param_named(trace_guest_lock_holder,
+		   trace_guest_lock_holder, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(trace_guest_lock_holder,
+ "Trace guest lock holder when a vcpu is scheduled out.");
+#endif
+
 MODULE_AUTHOR("Qumranet");
 MODULE_LICENSE("GPL");
 
@@ -2677,6 +2685,10 @@ static void kvm_sched_out(struct preempt_notifier *pn,
 	struct kvm_vcpu *vcpu = preempt_notifier_to_vcpu(pn);
 
 	kvm_arch_vcpu_put(vcpu);
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+        if (trace_guest_lock_holder)
+                get_lock_holder_eip(vcpu);
+#endif
 }
 
 int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
