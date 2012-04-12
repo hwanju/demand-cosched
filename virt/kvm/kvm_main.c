@@ -62,9 +62,10 @@
 #include <trace/events/kvm.h>
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-static int trace_guest_lock_holder;
+int trace_guest_lock_holder;
+EXPORT_SYMBOL_GPL(trace_guest_lock_holder);
 module_param_named(trace_guest_lock_holder,
-		   trace_guest_lock_holder, bool, S_IRUGO | S_IWUSR);
+		   trace_guest_lock_holder, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(trace_guest_lock_holder,
  "Trace guest lock holder when a vcpu is scheduled out.");
 #endif
@@ -2686,8 +2687,9 @@ static void kvm_sched_out(struct preempt_notifier *pn,
 
 	kvm_arch_vcpu_put(vcpu);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-        if (trace_guest_lock_holder)
-                get_lock_holder_eip(vcpu);
+        /* trace lock holder preemption */
+        if (trace_guest_lock_holder & 0x01)
+                kvm_get_lock_holder(vcpu, 0xffff);
 #endif
 }
 

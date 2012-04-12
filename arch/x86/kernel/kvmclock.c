@@ -163,7 +163,7 @@ static void kvm_crash_shutdown(struct pt_regs *regs)
 	native_write_msr(msr_kvm_system_time, 0, 0);
 	kvm_disable_steal_time();
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        kvm_disable_lock_holder_eip();
+        kvm_disable_lock_holder();
 #endif
 	native_machine_crash_shutdown(regs);
 }
@@ -174,7 +174,7 @@ static void kvm_shutdown(void)
 	native_write_msr(msr_kvm_system_time, 0, 0);
 	kvm_disable_steal_time();
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        kvm_disable_lock_holder_eip();
+        kvm_disable_lock_holder();
 #endif
 	native_machine_shutdown();
 }

@@ -71,9 +71,9 @@ static DEFINE_PER_CPU(struct kvm_vcpu_pv_apf_data, apf_reason) __aligned(64);
 static DEFINE_PER_CPU(struct kvm_steal_time, steal_time) __aligned(64);
 static int has_steal_clock = 0;
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-DEFINE_PER_CPU(unsigned long, lock_holder_eip) __aligned(64);
-EXPORT_PER_CPU_SYMBOL_GPL(lock_holder_eip);
-static int has_lock_holder_eip = 0;
+DEFINE_PER_CPU(struct kvm_lock_holder, lock_holder) __aligned(64);
+EXPORT_PER_CPU_SYMBOL_GPL(lock_holder);
+static int has_lock_holder_tracker = 0;
 #endif
 
 static struct kvm_para_state *kvm_para_state(void)
@@ -474,17 +474,17 @@ static void kvm_register_steal_time(void)
 }
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-static void kvm_register_lock_holder_eip(void)
+static void kvm_register_lock_holder(void)
 {
-	u64 pa = __pa(&__get_cpu_var(lock_holder_eip));
+	u64 pa = __pa(&__get_cpu_var(lock_holder));
 
 	wrmsrl(MSR_KVM_LOCK_HOLDER_EIP, (pa | KVM_MSR_ENABLED));
 	printk(KERN_INFO "kvm-lockholder: cpu %d, msr %llx\n",
 		smp_processor_id(), pa);
 }
-void kvm_disable_lock_holder_eip(void)
+void kvm_disable_lock_holder(void)
 {
-	if (!has_lock_holder_eip)
+	if (!has_lock_holder_tracker)
 		return;
 
 	wrmsr(MSR_KVM_LOCK_HOLDER_EIP, 0, 0);
@@ -511,8 +511,8 @@ void __cpuinit kvm_guest_cpu_init(void)
 	if (has_steal_clock)
 		kvm_register_steal_time();
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        if (has_lock_holder_eip)
-                kvm_register_lock_holder_eip();
+        if (has_lock_holder_tracker)
+                kvm_register_lock_holder();
 #endif
 }
 
@@ -587,7 +587,7 @@ static void kvm_guest_cpu_offline(void *dummy)
 	kvm_pv_disable_apf(NULL);
 	apf_task_wake_all();
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        kvm_disable_lock_holder_eip();
+        kvm_disable_lock_holder();
 #endif
 }
 
@@ -641,7 +641,7 @@ void __init kvm_guest_init(void)
 	}
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
 	if (kvm_para_has_feature(KVM_FEATURE_LOCK_HOLDER))
-		has_lock_holder_eip = 1;
+		has_lock_holder_tracker = 1;
 #endif
 
 #ifdef CONFIG_SMP

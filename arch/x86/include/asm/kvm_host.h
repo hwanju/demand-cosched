@@ -408,6 +408,7 @@ struct kvm_vcpu_arch {
         struct {
                 u64 msr_val;
                 struct gfn_to_hva_cache lh_eip;
+                struct kvm_lock_holder lock_holder;
         } lh;
 #endif
 
@@ -737,7 +738,7 @@ void kvm_get_cs_db_l_bits(struct kvm_vcpu *vcpu, int *db, int *l);
 int kvm_set_xcr(struct kvm_vcpu *vcpu, u32 index, u64 xcr);
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-unsigned long get_lock_holder_eip(struct kvm_vcpu *vcpu);
+void kvm_get_lock_holder(struct kvm_vcpu *vcpu, long caller_info);
 #endif
 
 int kvm_get_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata);

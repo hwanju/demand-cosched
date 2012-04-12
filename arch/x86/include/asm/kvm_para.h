@@ -53,6 +53,14 @@ struct kvm_steal_time {
 #define KVM_STEAL_VALID_BITS ((-1ULL << (KVM_STEAL_ALIGNMENT_BITS + 1)))
 #define KVM_STEAL_RESERVED_MASK (((1 << KVM_STEAL_ALIGNMENT_BITS) - 1 ) << 1)
 
+#define KVM_MAX_LOCK_HOLDER_EIP         4       /* power of 2 */
+#define KVM_LOCK_HOLDER_EIP_MASK        (KVM_MAX_LOCK_HOLDER_EIP-1)
+struct kvm_lock_holder {
+	__u64 eip[KVM_MAX_LOCK_HOLDER_EIP];
+        __u8 depth;
+        __u8 pad[63 - (8 * KVM_MAX_LOCK_HOLDER_EIP)];
+};
+
 #define KVM_MAX_MMU_OP_BATCH           32
 
 #define KVM_ASYNC_PF_ENABLED			(1 << 0)
@@ -198,7 +206,7 @@ void kvm_async_pf_task_wake(u32 token);
 u32 kvm_read_and_reset_pf_reason(void);
 extern void kvm_disable_steal_time(void);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-extern void kvm_disable_lock_holder_eip(void);
+extern void kvm_disable_lock_holder(void);
 #endif
 
 #ifdef CONFIG_PARAVIRT_SPINLOCKS

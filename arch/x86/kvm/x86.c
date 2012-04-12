@@ -1532,19 +1532,17 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 }
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-unsigned long get_lock_holder_eip(struct kvm_vcpu *vcpu)
+void kvm_get_lock_holder(struct kvm_vcpu *vcpu, long caller_info)
 {
-        unsigned long lock_holder_eip;
+        /* caller_info is only used by tracing for now */
 
 	if (!(vcpu->arch.lh.msr_val & KVM_MSR_ENABLED))
-		return 0;
+		return;
 
-	if (unlikely(kvm_read_guest_cached(vcpu->kvm, &vcpu->arch.lh.lh_eip,
-		&lock_holder_eip, sizeof(unsigned long))))
-		return 0;
-        return lock_holder_eip;
+	kvm_read_guest_cached(vcpu->kvm, &vcpu->arch.lh.lh_eip,
+		&vcpu->arch.lh.lock_holder, sizeof(struct kvm_lock_holder));
 }
-EXPORT_SYMBOL_GPL(get_lock_holder_eip);
+EXPORT_SYMBOL_GPL(kvm_get_lock_holder);
 #endif
 
 int kvm_set_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 data)

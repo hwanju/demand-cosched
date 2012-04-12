@@ -97,6 +97,13 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
         if (irq->ipi == 1 && irq->vector == RESCHEDULE_VECTOR)
                 set_ipi_status(current, RESCHED_IPI_SENT);
 #endif
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+        if (irq->ipi == 1) {
+                extern int trace_guest_lock_holder;
+                if (trace_guest_lock_holder & 0x02)
+                        kvm_get_lock_holder(src->vcpu, irq->vector);
+        }
+#endif
 	kvm_for_each_vcpu(i, vcpu, kvm) {
 		if (!kvm_apic_present(vcpu))
 			continue;

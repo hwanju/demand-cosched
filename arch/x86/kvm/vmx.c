@@ -5891,6 +5891,13 @@ static int vmx_handle_exit(struct kvm_vcpu *vcpu)
 		}
 	}
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+        {
+                extern int trace_guest_lock_holder;
+                if (trace_guest_lock_holder & 0x04)
+                        kvm_get_lock_holder(vcpu, exit_reason);
+        }
+#endif
 	if (exit_reason < kvm_vmx_max_exit_handlers
 	    && kvm_vmx_exit_handlers[exit_reason])
 		return kvm_vmx_exit_handlers[exit_reason](vcpu);

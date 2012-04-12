@@ -1997,8 +1997,9 @@ static void hrtick_start_fair(struct rq *rq, struct task_struct *p)
 		hrtick_start(rq, delta);
 	}
 #ifdef CONFIG_BALANCE_SCHED
-        else if (se->urgent_vcpu && 
-                        cpu_active(cpu_of(rq)) && hrtimer_is_hres_active(&rq->hrtick_timer)) 
+        else if (sysctl_sched_urgent_tslice_ns && 
+                 se->urgent_vcpu && se != __pick_first_entity(cfs_rq) &&
+                 cpu_active(cpu_of(rq)) && hrtimer_is_hres_active(&rq->hrtick_timer)) 
                 hrtick_start(rq, sysctl_sched_urgent_tslice_ns);
 #endif
 }

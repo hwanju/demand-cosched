@@ -4577,7 +4577,9 @@ need_resched:
 
 	schedule_debug(prev);
 
+#ifndef CONFIG_BALANCE_SCHED
 	if (sched_feat(HRTICK))
+#endif
 		hrtick_clear(rq);
 
 	raw_spin_lock_irq(&rq->lock);
