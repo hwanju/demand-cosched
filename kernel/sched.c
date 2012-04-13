@@ -5891,6 +5891,9 @@ SYSCALL_DEFINE0(sched_yield)
 	__release(rq->lock);
 	spin_release(&rq->lock.dep_map, 1, _THIS_IP_);
 	do_raw_spin_unlock(&rq->lock);
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+	clear_lock_holder();
+#endif
 	preempt_enable_no_resched();
 
 	schedule();
