@@ -482,11 +482,11 @@ static void kvm_register_lock_holder(void)
         if (!has_lock_holder_tracker)
                 return;
 
-	memset(lh, 0, sizeof(*lh));
+	//memset(lh, 0, sizeof(*lh));
 
 	wrmsrl(MSR_KVM_LOCK_HOLDER_EIP, (__pa(lh) | KVM_MSR_ENABLED));
-	printk(KERN_INFO "kvm-lockholder: cpu %d, msr %llx\n",
-		cpu, __pa(lh));
+	printk(KERN_INFO "kvm-lockholder: cpu %d, msr %llx (depth=%d)\n",
+		cpu, __pa(lh), lh->depth);
 }
 void kvm_disable_lock_holder(void)
 {

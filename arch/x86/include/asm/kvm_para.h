@@ -56,8 +56,8 @@ struct kvm_steal_time {
 #define KVM_MAX_LOCK_HOLDER_EIP         4       /* power of 2 */
 #define KVM_LOCK_HOLDER_EIP_MASK        (KVM_MAX_LOCK_HOLDER_EIP-1)
 struct kvm_lock_holder {
+        __s8 depth;
 	__u64 eip[KVM_MAX_LOCK_HOLDER_EIP];
-        __u8 depth;
         __u8 pad[63 - (8 * KVM_MAX_LOCK_HOLDER_EIP)];
 };
 

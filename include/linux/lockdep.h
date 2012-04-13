@@ -413,19 +413,8 @@ do {								\
 #define lock_contended(lockdep_map, ip) do {} while (0)
 #define lock_acquired(lockdep_map, ip) do {} while (0)
 
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-#include <linux/kvm_para.h>
-#define LOCK_CONTENDED(_lock, try, lock)			\
-do {                                            		\
-	lock(_lock);						\
-	if (sizeof(*_lock) == sizeof(raw_spinlock_t) ||		\
-	    sizeof(*_lock) == sizeof(rwlock_t))			\
-		set_lock_holder();				\
-} while (0)
-#else   /* CONFIG_PARAVIRT_LOCK_HOLDER_GUEST */
 #define LOCK_CONTENDED(_lock, try, lock) \
 	lock(_lock)
-#endif
 
 #endif /* CONFIG_LOCK_STAT */
 
@@ -441,16 +430,8 @@ do {                                            		\
 
 #else /* CONFIG_LOCKDEP */
 
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-#define LOCK_CONTENDED_FLAGS(_lock, try, lock, lockfl, flags) \
-do {                                    \
-	lockfl((_lock), (flags));       \
-        set_lock_holder();              \
-} while (0)
-#else   /* CONFIG_PARAVIRT_LOCK_HOLDER_GUEST */
 #define LOCK_CONTENDED_FLAGS(_lock, try, lock, lockfl, flags) \
 	lockfl((_lock), (flags))
-#endif
 
 #endif /* CONFIG_LOCKDEP */
 
@@ -485,11 +466,7 @@ static inline void print_irqtrace_events(struct task_struct *curr)
 # define spin_release(l, n, i)			lock_release(l, n, i)
 #else
 # define spin_acquire(l, s, t, i)		do { } while (0)
-# ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-#  define spin_release(l, n, i)			clear_lock_holder()
-# else
-#  define spin_release(l, n, i)			do { } while (0)
-# endif
+# define spin_release(l, n, i)			do { } while (0)
 #endif
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
@@ -504,11 +481,7 @@ static inline void print_irqtrace_events(struct task_struct *curr)
 #else
 # define rwlock_acquire(l, s, t, i)		do { } while (0)
 # define rwlock_acquire_read(l, s, t, i)	do { } while (0)
-# ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-#  define rwlock_release(l, n, i)               clear_lock_holder()
-# else
-#  define rwlock_release(l, n, i)		do { } while (0)
-# endif
+# define rwlock_release(l, n, i)		do { } while (0)
 #endif
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
