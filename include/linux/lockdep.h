@@ -414,16 +414,12 @@ do {								\
 #define lock_acquired(lockdep_map, ip) do {} while (0)
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-DECLARE_PER_CPU(struct kvm_lock_holder, lock_holder);
-#define set_lock_holder() \
-	do { __get_cpu_var(lock_holder).eip[(__get_cpu_var(lock_holder).depth)++ & KVM_LOCK_HOLDER_EIP_MASK] = _RET_IP_; } while(0)
-#define clear_lock_holder() \
-	do { __get_cpu_var(lock_holder).eip[--(__get_cpu_var(lock_holder).depth) & KVM_LOCK_HOLDER_EIP_MASK] = 0; } while(0)
-
+#include <linux/kvm_para.h>
 #define LOCK_CONTENDED(_lock, try, lock)			\
 do {                                            		\
-	lock(_lock)                             		\
-	if (lock != __down_read && lock != __down_write)	\
+	lock(_lock);						\
+	if (sizeof(*_lock) == sizeof(raw_spinlock_t) ||		\
+	    sizeof(*_lock) == sizeof(rwlock_t))			\
 		set_lock_holder();				\
 } while (0)
 #else   /* CONFIG_PARAVIRT_LOCK_HOLDER_GUEST */

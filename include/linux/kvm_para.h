@@ -35,6 +35,14 @@ static inline int kvm_para_has_feature(unsigned int feature)
 	return 0;
 }
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+DECLARE_PER_CPU(struct kvm_lock_holder, lock_holder);
+#define set_lock_holder() \
+	do { __get_cpu_var(lock_holder).eip[(__get_cpu_var(lock_holder).depth)++ & KVM_LOCK_HOLDER_EIP_MASK] = _RET_IP_; } while(0)
+#define clear_lock_holder() \
+	do { __get_cpu_var(lock_holder).eip[--(__get_cpu_var(lock_holder).depth) & KVM_LOCK_HOLDER_EIP_MASK] = 0; } while(0)
+#endif /* CONFIG_PARAVIRT_LOCK_HOLDER_GUEST */
+
 #endif /* __KERNEL__ */
 #endif /* __LINUX_KVM_PARA_H */
 
