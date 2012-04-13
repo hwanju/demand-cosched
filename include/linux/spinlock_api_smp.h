@@ -92,9 +92,6 @@ static inline int __raw_spin_trylock(raw_spinlock_t *lock)
 	preempt_disable();
 	if (do_raw_spin_trylock(lock)) {
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-                spin_acquired();
-#endif
 		return 1;
 	}
 	preempt_enable();
@@ -124,9 +121,9 @@ static inline unsigned long __raw_spin_lock_irqsave(raw_spinlock_t *lock)
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
 #else
 	do_raw_spin_lock_flags(lock, &flags);
-#endif
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_acquired();
+# ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
+        set_lock_holder();
+# endif
 #endif
 	return flags;
 }
@@ -137,9 +134,6 @@ static inline void __raw_spin_lock_irq(raw_spinlock_t *lock)
 	preempt_disable();
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_acquired();
-#endif
 }
 
 static inline void __raw_spin_lock_bh(raw_spinlock_t *lock)
@@ -148,9 +142,6 @@ static inline void __raw_spin_lock_bh(raw_spinlock_t *lock)
 	preempt_disable();
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_acquired();
-#endif
 }
 
 static inline void __raw_spin_lock(raw_spinlock_t *lock)
@@ -158,9 +149,6 @@ static inline void __raw_spin_lock(raw_spinlock_t *lock)
 	preempt_disable();
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_acquired();
-#endif
 }
 
 #endif /* CONFIG_PREEMPT */
@@ -169,9 +157,6 @@ static inline void __raw_spin_unlock(raw_spinlock_t *lock)
 {
 	spin_release(&lock->dep_map, 1, _RET_IP_);
 	do_raw_spin_unlock(lock);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_released();
-#endif
 	preempt_enable();
 }
 
@@ -181,9 +166,6 @@ static inline void __raw_spin_unlock_irqrestore(raw_spinlock_t *lock,
 	spin_release(&lock->dep_map, 1, _RET_IP_);
 	do_raw_spin_unlock(lock);
 	local_irq_restore(flags);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_released();
-#endif
 	preempt_enable();
 }
 
@@ -192,9 +174,6 @@ static inline void __raw_spin_unlock_irq(raw_spinlock_t *lock)
 	spin_release(&lock->dep_map, 1, _RET_IP_);
 	do_raw_spin_unlock(lock);
 	local_irq_enable();
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_released();
-#endif
 	preempt_enable();
 }
 
@@ -202,9 +181,6 @@ static inline void __raw_spin_unlock_bh(raw_spinlock_t *lock)
 {
 	spin_release(&lock->dep_map, 1, _RET_IP_);
 	do_raw_spin_unlock(lock);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        spin_released();
-#endif
 	preempt_enable_no_resched();
 	local_bh_enable_ip((unsigned long)__builtin_return_address(0));
 }
@@ -215,9 +191,6 @@ static inline int __raw_spin_trylock_bh(raw_spinlock_t *lock)
 	preempt_disable();
 	if (do_raw_spin_trylock(lock)) {
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-                spin_acquired();
-#endif
 		return 1;
 	}
 	preempt_enable_no_resched();
