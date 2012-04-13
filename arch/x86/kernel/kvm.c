@@ -476,11 +476,17 @@ static void kvm_register_steal_time(void)
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
 static void kvm_register_lock_holder(void)
 {
-	u64 pa = __pa(&__get_cpu_var(lock_holder));
+        int cpu = smp_processor_id();
+	struct kvm_lock_holder *lh = &per_cpu(lock_holder, cpu);
 
-	wrmsrl(MSR_KVM_LOCK_HOLDER_EIP, (pa | KVM_MSR_ENABLED));
+        if (!has_lock_holder_tracker)
+                return;
+
+	memset(lh, 0, sizeof(*lh));
+
+	wrmsrl(MSR_KVM_LOCK_HOLDER_EIP, (__pa(lh) | KVM_MSR_ENABLED));
 	printk(KERN_INFO "kvm-lockholder: cpu %d, msr %llx\n",
-		smp_processor_id(), pa);
+		cpu, __pa(lh));
 }
 void kvm_disable_lock_holder(void)
 {
