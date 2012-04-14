@@ -116,6 +116,9 @@ struct kvm_vcpu {
 	struct kvm *kvm;
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 	struct preempt_notifier preempt_notifier;
+# ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	struct preempt_notifier lh_preempt_notifier;
+# endif
 #endif
 	int cpu;
 	int vcpu_id;

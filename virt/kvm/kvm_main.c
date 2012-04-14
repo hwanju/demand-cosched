@@ -90,6 +90,9 @@ struct kmem_cache *kvm_vcpu_cache;
 EXPORT_SYMBOL_GPL(kvm_vcpu_cache);
 
 static __read_mostly struct preempt_ops kvm_preempt_ops;
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+static __read_mostly struct preempt_ops kvm_lh_preempt_ops;
+#endif
 
 struct dentry *kvm_debugfs_dir;
 
@@ -262,6 +265,9 @@ void kvm_vcpu_uninit(struct kvm_vcpu *vcpu)
 	put_pid(vcpu->pid);
 	kvm_arch_vcpu_uninit(vcpu);
 	free_page((unsigned long)vcpu->run);
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	preempt_notifier_unregister(&vcpu->lh_preempt_notifier);
+#endif
 }
 EXPORT_SYMBOL_GPL(kvm_vcpu_uninit);
 
@@ -1668,6 +1674,10 @@ static int kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id)
 		return PTR_ERR(vcpu);
 
 	preempt_notifier_init(&vcpu->preempt_notifier, &kvm_preempt_ops);
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	preempt_notifier_init(&vcpu->lh_preempt_notifier, &kvm_lh_preempt_ops);
+	preempt_notifier_register(&vcpu->lh_preempt_notifier);
+#endif
 
 #ifdef CONFIG_BALANCE_SCHED
         current->se.is_vcpu = NEW_VCPU_SE;
@@ -2686,12 +2696,24 @@ static void kvm_sched_out(struct preempt_notifier *pn,
 	struct kvm_vcpu *vcpu = preempt_notifier_to_vcpu(pn);
 
 	kvm_arch_vcpu_put(vcpu);
-#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-        /* trace lock holder preemption */
-        if (trace_guest_lock_holder & 0x01)
-                kvm_get_lock_holder(vcpu, 0xffff);
-#endif
 }
+
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+static void kvm_lh_sched_in(struct preempt_notifier *pn, int cpu)
+{
+}
+static void kvm_lh_sched_out(struct preempt_notifier *pn,
+			  struct task_struct *next)
+{
+        /* trace lock holder preemption */
+        if (trace_guest_lock_holder & 0x01 && !current->state) {
+		struct kvm_vcpu *vcpu = 
+			(struct kvm_vcpu *)container_of(pn, 
+					struct kvm_vcpu, lh_preempt_notifier);
+                kvm_get_lock_holder(vcpu, 0xffff);
+	}
+}
+#endif
 
 int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 		  struct module *module)
@@ -2780,6 +2802,11 @@ int kvm_init(void *opaque, unsigned vcpu_size, unsigned vcpu_align,
 
 	kvm_preempt_ops.sched_in = kvm_sched_in;
 	kvm_preempt_ops.sched_out = kvm_sched_out;
+
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	kvm_lh_preempt_ops.sched_in = kvm_lh_sched_in;
+	kvm_lh_preempt_ops.sched_out = kvm_lh_sched_out;
+#endif
 
 	kvm_init_debug();
 
