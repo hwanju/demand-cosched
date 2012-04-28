@@ -2710,7 +2710,9 @@ static void kvm_lh_sched_out(struct preempt_notifier *pn,
 		struct kvm_vcpu *vcpu = 
 			(struct kvm_vcpu *)container_of(pn, 
 					struct kvm_vcpu, lh_preempt_notifier);
-                kvm_get_lock_holder(vcpu, 0xffff);
+                kvm_get_lock_holder(vcpu, 
+			current->tgid == next->tgid ? 
+			(next->se.is_vcpu ? 0xf000 : 0xf001) : 0xe000);
 	}
 }
 #endif

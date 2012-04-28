@@ -133,7 +133,7 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
                                             irq->vector >= INVALIDATE_TLB_VECTOR_START &&
                                             irq->vector <= INVALIDATE_TLB_VECTOR_END)
                                                 list_add_urgent_vcpu(task);
-                                        else 
+                                        else
                                                 set_ipi_status(task, RESCHED_IPI_RECVED);
                                         put_task_struct(task);
                                 }

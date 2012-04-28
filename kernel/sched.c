@@ -2699,8 +2699,10 @@ static inline void try_to_balance_affine(struct task_struct *p)
                 for_each_cpu(i, cpu_active_mask) {
                         int load_imbalance = 0;
                         /* although tg->se[i]->on_rq is true, its queue may have no vcpu */
-                        if (likely(tg->se[i] && tg->se[i]->my_q) && !tg->se[i]->my_q->nr_running_vcpus)
+                        if (likely(tg->se[i] && tg->se[i]->my_q) && !tg->se[i]->my_q->nr_running_vcpus) {
                                 cpu_set(i, balanced_cpus_allowed);
+                                affinity_updated = 1;
+			}
                         if (!(load_imbalance = cause_load_imbalance(tg, i, se->load.weight, cur_total_weight))) {
                                 cpu_set(i, light_cpus_allowed);
                                 affinity_updated = 1;
@@ -10001,26 +10003,24 @@ void set_ipi_status(struct task_struct *p, int type)
 
         BUG_ON(!se->is_vcpu);     /* assert entity is vcpu */
         se->ipi_status |= type;
+
+	if (sysctl_sched_vm_preempt_mode & 0x08 &&
+	    type == RESCHED_IPI_SENT)
+		se->ipi_timestamp = sched_clock();
 }
 EXPORT_SYMBOL_GPL(set_ipi_status);
 
 unsigned int __read_mostly sysctl_sched_urgent_vcpu_first = 0;
 EXPORT_SYMBOL_GPL(sysctl_sched_urgent_vcpu_first);
 
-int list_add_urgent_vcpu(struct task_struct *p)
+void list_add_urgent_vcpu(struct task_struct *p)
 {
         struct rq *rq;
         unsigned long flags;
-        int pending;
-
-        if (!sysctl_sched_urgent_vcpu_first)
-                return 0;
 
         rq = task_rq_lock(p, &flags);
-        pending = __list_add_urgent_vcpu(p, &p->se, 0);
+        __list_add_urgent_vcpu(p, &p->se, 0);
         task_rq_unlock(rq, p, &flags); 
-
-        return pending;
 }
 EXPORT_SYMBOL_GPL(list_add_urgent_vcpu);
 #endif

@@ -421,6 +421,13 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_minmax,
 	},
+	{
+		.procname	= "sched_lock_resched_ns",
+		.data		= &sysctl_sched_lock_resched_ns,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+	},
 #endif
 #ifdef CONFIG_PROVE_LOCKING
 	{
