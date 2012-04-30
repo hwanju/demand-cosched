@@ -1327,6 +1327,10 @@ static inline void init_hrtick(void)
 #define tsk_is_polling(t) test_tsk_thread_flag(t, TIF_POLLING_NRFLAG)
 #endif
 
+#ifdef CONFIG_BALANCE_SCHED
+int should_delay_resched(struct rq *rq);
+#endif
+
 static void resched_task(struct task_struct *p)
 {
 	int cpu;
@@ -1336,6 +1340,10 @@ static void resched_task(struct task_struct *p)
 	if (test_tsk_need_resched(p))
 		return;
 
+#ifdef CONFIG_BALANCE_SCHED
+	if (should_delay_resched(task_rq(p)))
+		return;
+#endif
 	set_tsk_need_resched(p);
 
 	cpu = task_cpu(p);
