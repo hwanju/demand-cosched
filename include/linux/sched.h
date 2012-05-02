@@ -1177,7 +1177,7 @@ extern unsigned int sysctl_sched_urgent_latency_ns;
 extern unsigned int sysctl_sched_lock_resched_ns;
 
 extern void set_ipi_status(struct task_struct *p, int type);
-extern void list_add_urgent_vcpu(struct task_struct *p);
+extern void enqueue_urgent_task(struct task_struct *p);
 #endif
 
 struct sched_entity {
@@ -1215,8 +1215,8 @@ struct sched_entity {
         int ipi_status;
 	u64 ipi_timestamp;
 
-        struct list_head urgent_vcpu_node;
-        int urgent_vcpu;
+        struct list_head urgent_node;
+        int urgent;
 	u64 urgent_tslice;
 #endif
 };

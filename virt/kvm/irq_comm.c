@@ -126,15 +126,17 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
                                 rcu_read_lock();
                                 pid = rcu_dereference(vcpu->pid);
                                 if (pid)
-                                        task = get_pid_task(vcpu->pid, PIDTYPE_PID);
+                                        task = get_pid_task(vcpu->pid, 
+							PIDTYPE_PID);
                                 rcu_read_unlock();
                                 if (task) {
                                         if (sysctl_sched_urgent_vcpu_first && 
                                             irq->vector >= INVALIDATE_TLB_VECTOR_START &&
                                             irq->vector <= INVALIDATE_TLB_VECTOR_END)
-                                                list_add_urgent_vcpu(task);
+                                                enqueue_urgent_task(task);
                                         else
-                                                set_ipi_status(task, RESCHED_IPI_RECVED);
+                                                set_ipi_status(task, 
+							RESCHED_IPI_RECVED);
                                         put_task_struct(task);
                                 }
                         }

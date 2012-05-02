@@ -368,7 +368,7 @@ struct cfs_rq {
 	struct list_head tasks;
 	struct list_head *balance_iterator;
 #ifdef CONFIG_BALANCE_SCHED
-	struct list_head urgent_vcpu_list;
+	struct list_head urgent_queue;
 #endif
 
 	/*
@@ -1328,7 +1328,7 @@ static inline void init_hrtick(void)
 #endif
 
 #ifdef CONFIG_BALANCE_SCHED
-int should_delay_resched(struct rq *rq);
+int should_delay_resched(struct task_struct *p);
 #endif
 
 static void resched_task(struct task_struct *p)
@@ -1341,7 +1341,7 @@ static void resched_task(struct task_struct *p)
 		return;
 
 #ifdef CONFIG_BALANCE_SCHED
-	if (should_delay_resched(task_rq(p)))
+	if (should_delay_resched(p))
 		return;
 #endif
 	set_tsk_need_resched(p);
@@ -3131,7 +3131,7 @@ static void __sched_fork(struct task_struct *p)
 	p->se.vruntime			= 0;
 	INIT_LIST_HEAD(&p->se.group_node);
 #ifdef CONFIG_BALANCE_SCHED
-	INIT_LIST_HEAD(&p->se.urgent_vcpu_node);
+	INIT_LIST_HEAD(&p->se.urgent_node);
 #endif
 
 #ifdef CONFIG_SCHEDSTATS
@@ -8287,7 +8287,7 @@ static void init_cfs_rq(struct cfs_rq *cfs_rq)
 	cfs_rq->min_vruntime_copy = cfs_rq->min_vruntime;
 #endif
 #ifdef CONFIG_BALANCE_SCHED
-	INIT_LIST_HEAD(&cfs_rq->urgent_vcpu_list);
+	INIT_LIST_HEAD(&cfs_rq->urgent_queue);
 #endif
 }
 
@@ -8349,7 +8349,7 @@ static void init_tg_cfs_entry(struct task_group *tg, struct cfs_rq *cfs_rq,
 	update_load_set(&se->load, 0);
 	se->parent = parent;
 #ifdef CONFIG_BALANCE_SCHED
-	INIT_LIST_HEAD(&se->urgent_vcpu_node);
+	INIT_LIST_HEAD(&se->urgent_node);
 #endif
 }
 #endif
@@ -10010,7 +10010,7 @@ void set_ipi_status(struct task_struct *p, int type)
         struct sched_entity *se = &p->se;
 
         BUG_ON(!se->is_vcpu);     /* assert entity is vcpu */
-        se->ipi_status |= type;
+	se->ipi_status |= type;
 
 	if (sysctl_sched_vm_preempt_mode & 0x08 &&
 	    type == RESCHED_IPI_SENT)
@@ -10021,14 +10021,16 @@ EXPORT_SYMBOL_GPL(set_ipi_status);
 unsigned int __read_mostly sysctl_sched_urgent_vcpu_first = 0;
 EXPORT_SYMBOL_GPL(sysctl_sched_urgent_vcpu_first);
 
-void list_add_urgent_vcpu(struct task_struct *p)
+void enqueue_urgent_task(struct task_struct *p)
 {
         struct rq *rq;
         unsigned long flags;
+	struct sched_entity *se = &p->se;
 
         rq = task_rq_lock(p, &flags);
-        __list_add_urgent_vcpu(p, &p->se, 0);
+	for_each_sched_entity(se) 
+		enqueue_urgent_entity(se, 0);
         task_rq_unlock(rq, p, &flags); 
 }
-EXPORT_SYMBOL_GPL(list_add_urgent_vcpu);
+EXPORT_SYMBOL_GPL(enqueue_urgent_task);
 #endif
