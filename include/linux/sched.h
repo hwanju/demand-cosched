@@ -1172,9 +1172,10 @@ extern unsigned int sysctl_balsched_load_imbalance_pct;
 extern unsigned int sysctl_sched_vm_preempt_mode;
 
 extern unsigned int sysctl_sched_urgent_vcpu_first;
-extern unsigned int sysctl_sched_urgent_tslice_ns;
+extern unsigned int sysctl_sched_urgent_tslice_limit_ns;
 extern unsigned int sysctl_sched_urgent_latency_ns;
 extern unsigned int sysctl_sched_lock_resched_ns;
+extern unsigned int sysctl_sched_tlb_shootdown_ns;
 
 extern void set_ipi_status(struct task_struct *p, int type);
 extern void enqueue_urgent_task(struct task_struct *p);
@@ -1213,11 +1214,11 @@ struct sched_entity {
 #define RESCHED_IPI_SENT        0x1
 #define RESCHED_IPI_RECVED      0x2
         int ipi_status;
-	u64 ipi_timestamp;
 
         struct list_head urgent_node;
         int urgent;
 	u64 urgent_tslice;
+	u64 urgent_sum_exec_runtime;
 #endif
 };
 

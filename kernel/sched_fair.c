@@ -106,9 +106,10 @@ unsigned int sysctl_sched_cfs_bandwidth_slice = 5000UL;
 #ifdef CONFIG_BALANCE_SCHED
 unsigned int sysctl_sched_vm_preempt_mode = 0UL;
 EXPORT_SYMBOL_GPL(sysctl_sched_vm_preempt_mode);
-unsigned int __read_mostly sysctl_sched_urgent_tslice_ns        = 500000UL;     /* default 500us */
+unsigned int __read_mostly sysctl_sched_urgent_tslice_limit_ns  = 500000UL;     /* default 500us */
 unsigned int __read_mostly sysctl_sched_urgent_latency_ns       = 24000000UL;   /* FIXME: default 24000000ns */
-unsigned int __read_mostly sysctl_sched_lock_resched_ns		= 100000UL;     /* default 500us */
+unsigned int __read_mostly sysctl_sched_tlb_shootdown_ns	= 100000UL;     /* default 100us */
+unsigned int __read_mostly sysctl_sched_lock_resched_ns		= 100000UL;     /* default 100us */
 #endif
 
 static const struct sched_class fair_sched_class;
@@ -373,20 +374,24 @@ static void update_min_vruntime(struct cfs_rq *cfs_rq)
 #ifdef CONFIG_BALANCE_SCHED
 static int can_urgently_preempt(struct sched_entity *left, struct sched_entity *se)
 {
-        trace_ipi_list_debug(4, entity_is_task(se) ? task_of(se) : NULL, 
+        trace_sched_urgent_entity(4, /* pick */
+			entity_is_task(se) ? task_of(se) : NULL, 
                         se->cfs_rq->rq->cpu, 
 			se->vruntime - se->cfs_rq->min_vruntime, 
-			se->vruntime - left->vruntime);
+			se->vruntime - left->vruntime,
+			0);
 
         if (entity_is_task(se))
                 return 1;
         if (se->vruntime - left->vruntime < sysctl_sched_urgent_latency_ns)
                 return 1;
 
-        trace_ipi_list_debug(5, entity_is_task(se) ? task_of(se) : NULL, 
+        trace_sched_urgent_entity(5, /* fail */
+			entity_is_task(se) ? task_of(se) : NULL, 
                         se->cfs_rq->rq->cpu, 
 			se->vruntime - se->cfs_rq->min_vruntime, 
-			se->vruntime - left->vruntime);
+			se->vruntime - left->vruntime,
+			0);
         return 0;
 }
 /* return remaining urgent time slice of se
@@ -396,12 +401,38 @@ static s64 remaining_urgent_tslice(struct sched_entity *se)
 {
 	s64 remaining_tslice = se->urgent_tslice;
 
-	/* make sure se is urgently running urgent */
-	BUG_ON(!se->urgent); // || cfs_rq_of(se)->curr != se);
-
+	/* if not urgent, se->urgent_tslice is zero, 
+	 * so always returns negative exec runtime */
 	remaining_tslice -= (se->sum_exec_runtime - se->prev_sum_exec_runtime);
 
 	return remaining_tslice;
+}
+static inline u64 urgent_runtime(struct sched_entity *se)
+{
+	return se->sum_exec_runtime - se->urgent_sum_exec_runtime;
+}
+static void mod_urgent_timer(struct sched_entity *se, s64 delay)
+{
+	struct rq *rq = rq_of(cfs_rq_of(se));
+	
+	if (delay < 0) {
+		printk(KERN_ERR "BUG: %s invalid delay: %lld\n", __func__, delay);
+		return;
+	}
+
+	if (!hrtimer_active(&rq->hrtick_timer) ||
+	    se->urgent_sum_exec_runtime < se->prev_sum_exec_runtime)
+		se->urgent_sum_exec_runtime = se->sum_exec_runtime;
+
+	delay = max_t(s64, 10000LL, delay);
+	hrtick_start(rq, delay);
+
+	trace_sched_urgent_entity(9,	/* utm */
+			task_of(se),
+			cpu_of(rq),
+			delay,
+			urgent_runtime(se),
+			0);
 }
 static void update_curr(struct cfs_rq *cfs_rq);
 int should_delay_resched(struct task_struct *p)
@@ -430,19 +461,60 @@ int should_delay_resched(struct task_struct *p)
 		/* at this time, make sure rq clock is updated */
 		if (!in_hrtick_handler)	/* update_curr already at hrtick */
 			update_curr(cfs_rq);	/* make runtime up-to-date */
+		else if (urgent_runtime(se) >= 
+				sysctl_sched_urgent_tslice_limit_ns)
+			goto out_trace;
+
 		if ((delta = remaining_urgent_tslice(se)) > 0) {
-			delta = max_t(s64, 10000LL, delta);
-			hrtick_start(rq, delta);
+			mod_urgent_timer(se, delta);
 			ret = 1;
 		}
 	}
 out_trace:
-	trace_ipi_list_debug(7, p, cpu_of(rq), 
+	trace_sched_urgent_entity(7,	/* res */
+			p, cpu_of(rq), 
 			delta,
+			urgent_runtime(se),
 			ret | p->on_rq << 1 | se->urgent << 2 | 
-			in_hrtick_handler << 3 |
+			!!in_hrtick_handler << 3 |
 			hrtimer_active(&rq->hrtick_timer) << 4);
+	if (ret)
+		clear_tsk_need_resched(p);
 	return ret;
+}
+static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
+{
+	struct sched_entity *se = &p->se;
+	struct cfs_rq *cfs_rq = cfs_rq_of(se);
+	struct rq *rq = rq_of(cfs_rq);
+	s64 remaining_tslice;
+	s64 remaining_runtime = 0;
+
+	if (!se->urgent)
+		return;
+	BUG_ON(cfs_rq->curr != se);	/* ensure p is currently running */
+
+	update_rq_clock(rq);
+	update_curr(cfs_rq);
+	remaining_tslice = remaining_urgent_tslice(se);
+
+	se->urgent_tslice = 
+		se->urgent_tslice - remaining_tslice + tslice;
+	
+	if (hrtimer_active(&rq->hrtick_timer)) {
+		remaining_runtime = sysctl_sched_urgent_tslice_limit_ns - 
+				    urgent_runtime(se);
+		if (remaining_runtime > 0) {
+			tslice = min_t(u64, remaining_runtime, tslice);
+			mod_urgent_timer(se, tslice);
+		}
+	}
+	trace_sched_urgent_entity(8,	/* mod */
+			p, 
+			cpu_of(rq), 
+			se->urgent_tslice, 
+			remaining_tslice,
+			remaining_runtime);
 }
 void enqueue_urgent_entity(struct sched_entity *se, int force_enqueue)
 {
@@ -450,36 +522,28 @@ void enqueue_urgent_entity(struct sched_entity *se, int force_enqueue)
 
 	se->urgent = 1;
 
-	if (!force_enqueue &&	/* from IPI recv path */
-	    (!se->on_rq || cfs_rq->curr == se))
-		return;
-
-	/* set parent's tslice */ 
-	if (parent_entity(se))
-		parent_entity(se)->urgent_tslice = se->urgent_tslice;
-
-	if (!list_empty(&se->urgent_node)) {
-		/* in case of group entity with remaining tslice, 
-		 * requeue at head */
-		if (!entity_is_task(se) && se->urgent_tslice)
-			list_move(&se->urgent_node, &cfs_rq->urgent_queue);
-		return;
+	if (!force_enqueue) {	/* from TLB IPI recv path */
+		if (!se->on_rq)
+			return;
+		if (cfs_rq->curr == se) {
+			if (entity_is_task(se))
+				mod_urgent_tslice(task_of(se), 
+					sysctl_sched_tlb_shootdown_ns);
+			return;
+		}
 	}
+	if (!list_empty(&se->urgent_node)) 
+		return;
 
-	/* enqueue at head if unconsumed urgent tslice exists */
-	if (se->urgent_tslice)
-		list_add(&se->urgent_node, &cfs_rq->urgent_queue);
-	else	/* enqueue at tail if tslice hasn't been assigned */
-		list_add_tail(&se->urgent_node, &cfs_rq->urgent_queue);
-
-	trace_ipi_list_debug(1,	/* enqueue */
+	list_add_tail(&se->urgent_node, &cfs_rq->urgent_queue);
+	trace_sched_urgent_entity(1,	/* enq */
 			entity_is_task(se) ? task_of(se) : NULL,
 			cpu_of(rq_of(cfs_rq)), 
 			se->urgent_tslice,
-			force_enqueue);
+			force_enqueue,
+			0);
 
-	/* in case of tail-insertion, try to reschedule */
-	if (entity_is_task(se) && !se->urgent_tslice) {
+	if (entity_is_task(se) && se != cfs_rq->curr) {
 		/* from IPI-recv path, rq clock is not updated 
 		 * because IPI is an asynchronous event, so update 
 		 * is required to inspect remaining urgent tslice */
@@ -492,33 +556,23 @@ static void put_urgent_entity(struct sched_entity *se)
 {
 	/* check whether to reassign urgentness */
 	if (entity_is_task(se)) {	/* calculate only for a task */
-		s64 urgent_tslice	= 0;
-		s64 preemption_delay	= 0;
+		s64 remaining_tslice = 0;
 
 		/* check unconsumed urgent tslice */
 		if (se->urgent && se->on_rq)
-			urgent_tslice = remaining_urgent_tslice(se);
-
-		/* check time elapsed since the last resched ipi was sent */
-		if (sysctl_sched_vm_preempt_mode & 0x8 && 
-		    se->on_rq &&
-		    se->ipi_status == RESCHED_IPI_SENT)
-			preemption_delay = sysctl_sched_lock_resched_ns - 
-				(sched_clock() - se->ipi_timestamp);
+			remaining_tslice = remaining_urgent_tslice(se);
 		/* clear urgentness */
 		se->urgent = 0;
-		se->urgent_tslice = 0;
-
-		urgent_tslice = max_t(s64, urgent_tslice, preemption_delay);
-		if (urgent_tslice > 0) {
+		se->urgent_tslice = max_t(s64, 0LL, remaining_tslice);
+		if (se->urgent_tslice > 0) {
 			/* reassign urgentness */
 			se->urgent = 1;
-			se->urgent_tslice = urgent_tslice;
-			trace_ipi_list_debug(6,	/* reassign */
+			trace_sched_urgent_entity(6,	/* req */
 					entity_is_task(se) ? task_of(se) : NULL, 
 					rq_of(cfs_rq_of(se))->cpu, 
 					se->urgent_tslice,
-					se->urgent_tslice == preemption_delay);
+					remaining_tslice,
+					urgent_runtime(se));
 		}
 	}
 	else	/* group */
@@ -1294,7 +1348,9 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 #ifdef CONFIG_BALANCE_SCHED
         /* in case of migration, safely delete from ipi pending list */
         if (likely(se->urgent_node.next) && !list_empty(&se->urgent_node)) {
-                trace_ipi_list_debug(2, entity_is_task(se) ? task_of(se) : NULL, se->cfs_rq->rq->cpu, 1, 1);
+                trace_sched_urgent_entity(2, 
+				entity_is_task(se) ? task_of(se) : NULL, 
+				se->cfs_rq->rq->cpu, 0, 0, 0);
                 list_del_init(&se->urgent_node);
         }
 #endif
@@ -1389,11 +1445,12 @@ static struct sched_entity *pick_next_entity(struct cfs_rq *cfs_rq)
         struct sched_entity *p, *n;
 
         list_for_each_entry_safe(p, n, &cfs_rq->urgent_queue, urgent_node) {
-                trace_ipi_list_debug(3,	/* del&pick */
+                trace_sched_urgent_entity(3,	/* iter */
 				entity_is_task(p) ? task_of(p) : NULL, 
 				se->cfs_rq->rq->cpu, 
 				p->on_rq, 
-				cfs_rq_of(p) == cfs_rq);
+				cfs_rq_of(p) == cfs_rq,
+				0);
                 if (!p->on_rq || cfs_rq_of(p) != cfs_rq)
                         list_del_init(&p->urgent_node);
                 else if (can_urgently_preempt(left, p)) {
@@ -2912,8 +2969,8 @@ static int set_urgent_tslice(struct sched_entity *se)
 	for_each_sched_entity(se) {
 		cfs_rq = cfs_rq_of(se);
 
-		if (!se->urgent_tslice)	/* newly allocate tslice */
-			se->urgent_tslice = sysctl_sched_urgent_tslice_ns;
+		if (!se->urgent_tslice)	/* newly assign tslice */
+			se->urgent_tslice = sysctl_sched_tlb_shootdown_ns;
 		se->urgent_tslice = max_t(u64, 10000LL, se->urgent_tslice);
 
 		if (!list_empty(&cfs_rq->urgent_queue))
@@ -2925,7 +2982,6 @@ static int set_urgent_tslice(struct sched_entity *se)
 		if (!entity_is_task(se) &&	/* do not care intra-VM */
 		    (left = __pick_first_entity(cfs_rq)) &&
 		    wakeup_preempt_entity(left, se) == -1)
-		    //wakeup_preempt_entity(left, se) < 1)
 			need_hrtick = 1;
 	}
 	return need_hrtick;
@@ -2954,7 +3010,9 @@ static struct task_struct *pick_next_task_fair(struct rq *rq)
 	if (se->urgent &&
 	    set_urgent_tslice(se) &&
 	    hrtimer_is_hres_active(&rq->hrtick_timer))
-		hrtick_start(rq, se->urgent_tslice);
+		mod_urgent_timer(se, se->urgent_tslice);
+	else 
+		hrtick_clear(rq);
 #endif
 	return p;
 }

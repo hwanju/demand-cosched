@@ -701,6 +701,9 @@ struct rq {
 #ifdef CONFIG_SMP
 	int hrtick_csd_pending;
 	struct call_single_data hrtick_csd;
+#ifdef CONFIG_BALANCE_SCHED
+	struct task_struct *hrtick_pending_task;
+#endif
 #endif
 	struct hrtimer hrtick_timer;
 #endif
@@ -1222,6 +1225,9 @@ static void __hrtick_start(void *arg)
 	struct rq *rq = arg;
 
 	raw_spin_lock(&rq->lock);
+#ifdef CONFIG_BALANCE_SCHED
+	if (rq->curr == rq->hrtick_pending_task)
+#endif
 	hrtimer_restart(&rq->hrtick_timer);
 	rq->hrtick_csd_pending = 0;
 	raw_spin_unlock(&rq->lock);
@@ -1242,6 +1248,9 @@ static void hrtick_start(struct rq *rq, u64 delay)
 	if (rq == this_rq()) {
 		hrtimer_restart(timer);
 	} else if (!rq->hrtick_csd_pending) {
+#ifdef CONFIG_BALANCE_SCHED
+		rq->hrtick_pending_task = rq->curr;
+#endif
 		__smp_call_function_single(cpu_of(rq), &rq->hrtick_csd, 0);
 		rq->hrtick_csd_pending = 1;
 	}
@@ -1337,13 +1346,14 @@ static void resched_task(struct task_struct *p)
 
 	assert_raw_spin_locked(&task_rq(p)->lock);
 
-	if (test_tsk_need_resched(p))
-		return;
-
 #ifdef CONFIG_BALANCE_SCHED
 	if (should_delay_resched(p))
 		return;
 #endif
+
+	if (test_tsk_need_resched(p))
+		return;
+
 	set_tsk_need_resched(p);
 
 	cpu = task_cpu(p);
@@ -10013,8 +10023,15 @@ void set_ipi_status(struct task_struct *p, int type)
 	se->ipi_status |= type;
 
 	if (sysctl_sched_vm_preempt_mode & 0x08 &&
-	    type == RESCHED_IPI_SENT)
-		se->ipi_timestamp = sched_clock();
+	    type == RESCHED_IPI_SENT) {
+		struct rq *rq;
+		unsigned long flags;
+
+		rq = task_rq_lock(p, &flags);
+		p->se.urgent = 1;
+		mod_urgent_tslice(p, sysctl_sched_lock_resched_ns);
+		task_rq_unlock(rq, p, &flags); 
+	}
 }
 EXPORT_SYMBOL_GPL(set_ipi_status);
 

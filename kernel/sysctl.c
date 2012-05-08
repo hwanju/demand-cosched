@@ -408,8 +408,8 @@ static struct ctl_table kern_table[] = {
 		.extra2		= &one,
 	},
 	{
-		.procname	= "sched_urgent_tslice_ns",
-		.data		= &sysctl_sched_urgent_tslice_ns,
+		.procname	= "sched_urgent_tslice_limit_ns",
+		.data		= &sysctl_sched_urgent_tslice_limit_ns,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_minmax,
@@ -424,6 +424,13 @@ static struct ctl_table kern_table[] = {
 	{
 		.procname	= "sched_lock_resched_ns",
 		.data		= &sysctl_sched_lock_resched_ns,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+	},
+	{
+		.procname	= "sched_tlb_shootdown_ns",
+		.data		= &sysctl_sched_tlb_shootdown_ns,
 		.maxlen		= sizeof(unsigned int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_minmax,
