@@ -71,7 +71,7 @@ static DEFINE_PER_CPU(struct kvm_vcpu_pv_apf_data, apf_reason) __aligned(64);
 static DEFINE_PER_CPU(struct kvm_steal_time, steal_time) __aligned(64);
 static int has_steal_clock = 0;
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-DEFINE_PER_CPU(struct kvm_lock_holder, lock_holder) __aligned(64);
+DEFINE_PER_CPU(struct kvm_lock_holder, lock_holder) __aligned(128);
 EXPORT_PER_CPU_SYMBOL_GPL(lock_holder);
 static int has_lock_holder_tracker = 0;
 #endif

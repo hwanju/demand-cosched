@@ -93,7 +93,7 @@ static inline int __raw_spin_trylock(raw_spinlock_t *lock)
 	if (do_raw_spin_trylock(lock)) {
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-		set_lock_holder();
+		set_lock_holder(lock);
 #endif
 		return 1;
 	}
@@ -126,7 +126,7 @@ static inline unsigned long __raw_spin_lock_irqsave(raw_spinlock_t *lock)
 	do_raw_spin_lock_flags(lock, &flags);
 #endif
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        set_lock_holder();
+        set_lock_holder(lock);
 #endif
 	return flags;
 }
@@ -138,7 +138,7 @@ static inline void __raw_spin_lock_irq(raw_spinlock_t *lock)
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        set_lock_holder();
+        set_lock_holder(lock);
 #endif
 }
 
@@ -149,7 +149,7 @@ static inline void __raw_spin_lock_bh(raw_spinlock_t *lock)
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        set_lock_holder();
+        set_lock_holder(lock);
 #endif
 }
 
@@ -159,7 +159,7 @@ static inline void __raw_spin_lock(raw_spinlock_t *lock)
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	LOCK_CONTENDED(lock, do_raw_spin_trylock, do_raw_spin_lock);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-        set_lock_holder();
+        set_lock_holder(lock);
 #endif
 }
 
@@ -216,7 +216,7 @@ static inline int __raw_spin_trylock_bh(raw_spinlock_t *lock)
 	if (do_raw_spin_trylock(lock)) {
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_GUEST
-		set_lock_holder();
+		set_lock_holder(lock);
 #endif
 		return 1;
 	}

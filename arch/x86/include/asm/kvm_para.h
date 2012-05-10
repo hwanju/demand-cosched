@@ -53,12 +53,13 @@ struct kvm_steal_time {
 #define KVM_STEAL_VALID_BITS ((-1ULL << (KVM_STEAL_ALIGNMENT_BITS + 1)))
 #define KVM_STEAL_RESERVED_MASK (((1 << KVM_STEAL_ALIGNMENT_BITS) - 1 ) << 1)
 
-#define KVM_MAX_LOCK_HOLDER_EIP         4       /* power of 2 */
-#define KVM_LOCK_HOLDER_EIP_MASK        (KVM_MAX_LOCK_HOLDER_EIP-1)
+#define KVM_MAX_LOCK_HOLDER		4       /* power of 2 */
+#define KVM_LOCK_HOLDER_MASK		(KVM_MAX_LOCK_HOLDER-1)
 struct kvm_lock_holder {
         __s8 depth;
-	__u64 eip[KVM_MAX_LOCK_HOLDER_EIP];
-        __u8 pad[63 - (8 * KVM_MAX_LOCK_HOLDER_EIP)];
+	__u64 eip[KVM_MAX_LOCK_HOLDER];
+	__u64 lock[KVM_MAX_LOCK_HOLDER];
+        __u8 pad[127 - (8*2*KVM_MAX_LOCK_HOLDER)];
 };
 
 #define KVM_MAX_MMU_OP_BATCH           32

@@ -62,11 +62,17 @@
 #include <trace/events/kvm.h>
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-int trace_guest_lock_holder;
-EXPORT_SYMBOL_GPL(trace_guest_lock_holder);
-module_param_named(trace_guest_lock_holder,
-		   trace_guest_lock_holder, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(trace_guest_lock_holder,
+int trace_lock_holder;
+EXPORT_SYMBOL_GPL(trace_lock_holder);
+module_param_named(trace_lock_holder,
+		   trace_lock_holder, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(trace_lock_holder,
+ "Trace guest lock holder when a vcpu is scheduled out.");
+int trace_lock_holder_tgid;
+EXPORT_SYMBOL_GPL(trace_lock_holder_tgid);
+module_param_named(trace_lock_holder_tgid,
+		   trace_lock_holder_tgid, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(trace_lock_holder_tgid,
  "Trace guest lock holder when a vcpu is scheduled out.");
 #endif
 
@@ -2706,13 +2712,14 @@ static void kvm_lh_sched_out(struct preempt_notifier *pn,
 			  struct task_struct *next)
 {
         /* trace lock holder preemption */
-        if (trace_guest_lock_holder & 0x01 && !current->state) {
+	if (!current->state) {
 		struct kvm_vcpu *vcpu = 
 			(struct kvm_vcpu *)container_of(pn, 
 					struct kvm_vcpu, lh_preempt_notifier);
-                kvm_get_lock_holder(vcpu, 
+		check_lock_holder(vcpu, 
 			current->tgid == next->tgid ? 
-			(next->se.is_vcpu ? 0xf000 : 0xf001) : 0xe000);
+			(next->se.is_vcpu ? 0xf000 : 0xf001) : 0xe000,
+			0x01);
 	}
 }
 #endif

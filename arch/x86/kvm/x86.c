@@ -1539,7 +1539,7 @@ void kvm_get_lock_holder(struct kvm_vcpu *vcpu, long caller_info)
 	if (!(vcpu->arch.lh.msr_val & KVM_MSR_ENABLED))
 		return;
 
-	kvm_read_guest_cached(vcpu->kvm, &vcpu->arch.lh.lh_eip,
+	kvm_read_guest_cached(vcpu->kvm, &vcpu->arch.lh.lh_info,
 		&vcpu->arch.lh.lock_holder, sizeof(struct kvm_lock_holder));
 }
 EXPORT_SYMBOL_GPL(kvm_get_lock_holder);
@@ -1659,7 +1659,7 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 data)
 		if (data & KVM_STEAL_RESERVED_MASK)
 			return 1;
 
-		if (kvm_gfn_to_hva_cache_init(vcpu->kvm, &vcpu->arch.lh.lh_eip,
+		if (kvm_gfn_to_hva_cache_init(vcpu->kvm, &vcpu->arch.lh.lh_info,
 							data & KVM_STEAL_VALID_BITS))
 			return 1;
 
