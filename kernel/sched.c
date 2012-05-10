@@ -257,7 +257,6 @@ enum balsched_mode {
         BALSCHED_VCPUS,                 /* 1 */
         BALSCHED_VCPUS_MIGRATION,       /* 2 */
         BALSCHED_VCPUS_FAIR,            /* 3 */
-        BALSCHED_VCPUS_VRUNTIME,	/* 4 */
 };
 #define is_strict_balsched(tg)          (tg->balsched == BALSCHED_VCPUS || tg->balsched == BALSCHED_VCPUS_MIGRATION)
 #define is_updatable_balsched(tg)       (tg->balsched == BALSCHED_VCPUS_MIGRATION || tg->balsched == BALSCHED_VCPUS_FAIR)
@@ -2682,14 +2681,16 @@ static inline int try_to_balance_affine(struct task_struct *p)
 	int selected_cpu = -1;
 
         if (tg->balsched == BALSCHED_DISABLED || !se->is_vcpu)
-		goto out_selected_cpu;
+		return selected_cpu;
 
         cpus_clear(balanced_cpus_allowed);
         if (is_fair_balsched(tg)) {
                 for_each_cpu(i, cpu_active_mask)
                         cur_total_weight += weighted_cpuload(i);
-                        //cur_total_weight += weighted_cpuload(i) + 
-			//	effective_load(tg, i, 0, se->load.weight);
+#if 0
+                        cur_total_weight += weighted_cpuload(i) + 
+				effective_load(tg, i, 0, se->load.weight);
+#endif
         }
         if (is_strict_balsched(tg) && likely(!se->on_rq)) {
                 for_each_cpu(i, cpu_active_mask) {
@@ -2736,38 +2737,6 @@ static inline int try_to_balance_affine(struct task_struct *p)
                                 balanced_cpus_allowed = light_cpus_allowed;
                 }
         }
-	else if (tg->balsched == BALSCHED_VCPUS_VRUNTIME && likely(!se->on_rq)) {
-		/* FIXME: this code assumes all-set task affinity */
-		int this_cpu = smp_processor_id();
-		//u64 min_advanced_vruntime = ULONG_MAX;
-
-		selected_cpu = this_cpu;
-		if (idle_cpu(selected_cpu))
-			goto out_selected_cpu;
-		selected_cpu = task_cpu(p);
-		if (idle_cpu(selected_cpu))
-			goto out_selected_cpu;
-                for_each_cpu(selected_cpu, cpu_active_mask) {
-			if (idle_cpu(selected_cpu))
-				goto out_selected_cpu;
-		}
-#if 0
-                for_each_cpu(i, cpu_active_mask) {
-			struct sched_entity *grp;
-			u64 advanced_vruntime;
-			grp = tg->se[i];
-			advanced_vruntime = grp->vruntime;
-			if (grp->on_rq)
-				advanced_vruntime -= cfs_rq_of(grp)->min_vruntime;
-			if (advanced_vruntime < min_advanced_vruntime) {
-				min_advanced_vruntime = advanced_vruntime;
-				selected_cpu = i;
-			}
-		}
-#endif
-		selected_cpu = -1;
-		goto out_selected_cpu;
-	}
         /* if no idle cpu exists, return the affinity to all cpus */
         if (unlikely(!affinity_updated))
                 cpus_setall(balanced_cpus_allowed);
@@ -2775,7 +2744,7 @@ static inline int try_to_balance_affine(struct task_struct *p)
         trace_balsched_affinity(p, affinity_updated, balanced_cpus_allowed.bits[0]);
 
         p->cpus_allowed = balanced_cpus_allowed;
-out_selected_cpu:
+
 	return selected_cpu;
 }
 #endif
