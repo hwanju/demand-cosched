@@ -40,7 +40,7 @@ DECLARE_PER_CPU(struct kvm_lock_holder, lock_holder);
 #define set_lock_holder(lock) \
 	do { \
 		__get_cpu_var(lock_holder).eip[__get_cpu_var(lock_holder).depth & KVM_LOCK_HOLDER_MASK]  = _RET_IP_; \
-		__get_cpu_var(lock_holder).lock[__get_cpu_var(lock_holder).depth & KVM_LOCK_HOLDER_MASK] = lock; \
+		__get_cpu_var(lock_holder).lock[__get_cpu_var(lock_holder).depth & KVM_LOCK_HOLDER_MASK] = (u64)lock; \
 		__get_cpu_var(lock_holder).depth++;	\
 	} while(0)
 #define clear_lock_holder() \
