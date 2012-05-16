@@ -740,15 +740,16 @@ int kvm_set_xcr(struct kvm_vcpu *vcpu, u32 index, u64 xcr);
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
 extern int trace_lock_holder;
 extern int trace_lock_holder_tgid;
-void kvm_get_lock_holder(struct kvm_vcpu *vcpu, long caller_info);
+int kvm_get_lock_holder(struct kvm_vcpu *vcpu, 
+			 long caller_info, int point_flag);
 static inline void check_lock_holder(struct kvm_vcpu *vcpu,
 				     long caller_info,
-				     int point_bit)
+				     int point_flag)
 {
-	if (trace_lock_holder & point_bit &&
+	if (trace_lock_holder & point_flag &&
 	    (!trace_lock_holder_tgid || /* for every process */ 
 	     trace_lock_holder_tgid == current->tgid))
-		kvm_get_lock_holder(vcpu, caller_info);
+		kvm_get_lock_holder(vcpu, caller_info, point_flag);
 }
 #endif
 

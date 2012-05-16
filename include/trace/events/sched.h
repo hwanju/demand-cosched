@@ -440,32 +440,6 @@ TRACE_EVENT(balsched_affinity,
 	TP_printk("tgid=%d pid=%d affinity_updated=%d affinity_bit=%02lx",
                 __entry->tgid, __entry->pid, __entry->affinity_updated, __entry->affinity_bit)
 );
-TRACE_EVENT(balsched_cpu_load,
-        TP_PROTO(int cpu, unsigned long weight, s64 expected_load, unsigned long cur_total_weight, s64 cpu_load, unsigned long weight_per_cpu),
-
-        TP_ARGS(cpu, weight, expected_load, cur_total_weight, cpu_load, weight_per_cpu),
-
-        TP_STRUCT__entry(
-                __field( int,   cpu)
-                __field( unsigned long, weight)
-                __field( s64,   expected_load)
-                __field( unsigned long, cur_total_weight)
-                __field( s64,   cpu_load)
-                __field( unsigned long, weight_per_cpu)
-        ),
-
-        TP_fast_assign(
-                __entry->cpu    = cpu;
-                __entry->weight = weight;
-                __entry->expected_load  = expected_load;
-                __entry->cur_total_weight       = cur_total_weight;
-                __entry->cpu_load       = cpu_load;
-                __entry->weight_per_cpu = weight_per_cpu;
-        ),
-
-        TP_printk("cpu=%d weight=%lu expected_load=%lld cur_total_weight=%lu cpu_load=%lld weight_per_cpu=%lu",
-                       __entry->cpu, __entry->weight, __entry->expected_load, __entry->cur_total_weight, __entry->cpu_load, __entry->weight_per_cpu)
-)
 TRACE_EVENT(balsched_update_affinity,
         TP_PROTO(int op, struct task_struct *p, int nr_running_vcpus, unsigned long cpu_allowed_mask),
 

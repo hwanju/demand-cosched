@@ -3105,16 +3105,16 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
 {
 	int tsk_cache_hot = 0;
 #ifdef CONFIG_BALANCE_SCHED
-        int soft_affinity = 0;
+	struct task_group *tg = p->se.cfs_rq->tg;
 
-        /* BALSCHED_VCPUS_MIGRATION && sibling vcpu on this cpu -> clear affinity */
-        if (is_updatable_balsched(p->se.cfs_rq->tg) && 
-            is_strict_balsched(p->se.cfs_rq->tg) &&
+	/* in case of BALSCHED_VCPUS_MIGRATION, clear affinity when this cpu
+	 * has its sibling vcpu */
+        if (tg->balsched == BALSCHED_VCPUS_MIGRATION &&
 	    cpumask_test_cpu(this_cpu, tsk_cpus_allowed(p)) &&
-            p->se.cfs_rq->tg->se[this_cpu]->my_q->nr_running_vcpus) { 
+            tg->se[this_cpu]->my_q->nr_running_vcpus) { 
                 cpu_clear(this_cpu, p->cpus_allowed);
                 trace_balsched_update_affinity(0, p, 
-                                p->se.cfs_rq->tg->se[this_cpu]->my_q->nr_running_vcpus, 
+                                tg->se[this_cpu]->my_q->nr_running_vcpus,
                                 p->cpus_allowed.bits[0]); 
         }
 #endif
@@ -3126,20 +3126,26 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
 	 */
 	if (!cpumask_test_cpu(this_cpu, tsk_cpus_allowed(p))) {
 #ifdef CONFIG_BALANCE_SCHED
-                if (is_fair_balsched(p->se.cfs_rq->tg) || 
-                    (is_updatable_balsched(p->se.cfs_rq->tg) &&
-                     p->se.cfs_rq->tg->se[this_cpu]->my_q->nr_running_vcpus == 0)) { 
-                        soft_affinity = 1;
+		/* if BALSCHED_VCPUS_FAIR, unconditionally set this cpu.
+		 * if BALSCHED_VCPUS_MIGRATION, check if this cpu has no
+		 * sibling vcpu, and if so, set this cpu */
+                if (tg->balsched == BALSCHED_VCPUS_FAIR || 
+                    (tg->balsched == BALSCHED_VCPUS_MIGRATION &&
+                     tg->se[this_cpu]->my_q->nr_running_vcpus == 0)) { 
+			cpu_set(this_cpu, p->cpus_allowed);
+			trace_balsched_update_affinity(1, p, 
+					tg->se[this_cpu]->my_q->nr_running_vcpus, 
+					p->cpus_allowed.bits[0]); 
                         goto skip_affinity_violation;
                 }
 #endif
 		schedstat_inc(p, se.statistics.nr_failed_migrations_affine);
 		return 0;
 	}
-	*all_pinned = 0;
 #ifdef CONFIG_BALANCE_SCHED
 skip_affinity_violation:
 #endif
+	*all_pinned = 0;
 
 	if (task_running(rq, p)) {
 		schedstat_inc(p, se.statistics.nr_failed_migrations_running);
@@ -3161,27 +3167,13 @@ skip_affinity_violation:
 			schedstat_inc(p, se.statistics.nr_forced_migrations);
 		}
 #endif
-#ifdef CONFIG_BALANCE_SCHED
-                goto migrate_ok;
-#else
 		return 1;
-#endif
 	}
 
 	if (tsk_cache_hot) {
 		schedstat_inc(p, se.statistics.nr_failed_migrations_hot);
 		return 0;
 	}
-#ifdef CONFIG_BALANCE_SCHED
-migrate_ok:
-        if (soft_affinity) {
-                cpu_set(this_cpu, p->cpus_allowed);
-                *all_pinned = 0;
-                trace_balsched_update_affinity(1, p, 
-                                p->se.cfs_rq->tg->se[this_cpu]->my_q->nr_running_vcpus, 
-                                p->cpus_allowed.bits[0]); 
-        }
-#endif
 	return 1;
 }
 
