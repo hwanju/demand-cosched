@@ -32,6 +32,13 @@
 #ifdef CONFIG_BALANCE_SCHED
 #include <linux/sched.h>
 #include <asm/irq_vectors.h>
+extern unsigned long tlb_shootdown_latency_ns;
+extern unsigned long resched_ipi_unlock_latency_ns;
+extern unsigned long resched_ipi_cosched_tslice_ns;
+#define is_resched_ipi(vector)		(vector == RESCHEDULE_VECTOR)
+#define is_tlb_shootdown_ipi(vector)	\
+	(vector >= INVALIDATE_TLB_VECTOR_START && \
+	 vector <= INVALIDATE_TLB_VECTOR_END)
 #endif
 
 #include "irq.h"
@@ -94,8 +101,10 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 		printk(KERN_INFO "kvm: apic: phys broadcast and lowest prio\n");
 
 #ifdef CONFIG_BALANCE_SCHED
-        if (irq->ipi == 1 && irq->vector == RESCHEDULE_VECTOR)
-                set_ipi_status(current, RESCHED_IPI_SENT);
+        if (irq->ipi == 1 && 
+	    resched_ipi_unlock_latency_ns && 
+	    is_resched_ipi(irq->vector))
+		set_urgent_task(current, resched_ipi_unlock_latency_ns);
 #endif
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
         if (irq->ipi == 1) 
@@ -111,14 +120,18 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 
 		if (!kvm_is_dm_lowest_prio(irq)) {
 #ifdef CONFIG_BALANCE_SCHED
-                        if (irq->ipi == 1 && i != src->vcpu->vcpu_id && 
-                            ((sysctl_sched_urgent_vcpu_first && 
-                             irq->vector >= INVALIDATE_TLB_VECTOR_START &&
-                             irq->vector <= INVALIDATE_TLB_VECTOR_END) ||
-                            (sysctl_sched_vm_preempt_mode & 0x4 && 
-                             irq->vector == RESCHEDULE_VECTOR))) {
+                        if (irq->ipi == 1 && 
+			    i != src->vcpu->vcpu_id &&
+			    ((tlb_shootdown_latency_ns && 
+			    is_tlb_shootdown_ipi(irq->vector)) ||
+			    (resched_ipi_cosched_tslice_ns &&
+			     is_resched_ipi(irq->vector)))) {
                                 struct task_struct *task = NULL;
                                 struct pid *pid;
+				unsigned long tslice = 
+					is_tlb_shootdown_ipi(irq->vector) ?
+					tlb_shootdown_latency_ns :
+					resched_ipi_cosched_tslice_ns;
 
                                 rcu_read_lock();
                                 pid = rcu_dereference(vcpu->pid);
@@ -127,13 +140,7 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 							PIDTYPE_PID);
                                 rcu_read_unlock();
                                 if (task) {
-                                        if (sysctl_sched_urgent_vcpu_first && 
-                                            irq->vector >= INVALIDATE_TLB_VECTOR_START &&
-                                            irq->vector <= INVALIDATE_TLB_VECTOR_END)
-                                                enqueue_urgent_task(task);
-                                        else
-                                                set_ipi_status(task, 
-							RESCHED_IPI_RECVED);
+					set_urgent_task(task, tslice);
                                         put_task_struct(task);
                                 }
                         }

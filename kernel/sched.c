@@ -9962,39 +9962,20 @@ struct cgroup_subsys cpuacct_subsys = {
 #endif	/* CONFIG_CGROUP_CPUACCT */
 
 #ifdef CONFIG_BALANCE_SCHED
-void set_ipi_status(struct task_struct *p, int type)
-{
-        struct sched_entity *se = &p->se;
-
-        BUG_ON(!se->is_vcpu);     /* assert entity is vcpu */
-	se->ipi_status |= type;
-
-	if (sysctl_sched_vm_preempt_mode & 0x08 &&
-	    type == RESCHED_IPI_SENT) {
-		struct rq *rq;
-		unsigned long flags;
-
-		rq = task_rq_lock(p, &flags);
-		p->se.urgent = 1;
-		mod_urgent_tslice(p, sysctl_sched_lock_resched_ns);
-		task_rq_unlock(rq, p, &flags); 
-	}
-}
-EXPORT_SYMBOL_GPL(set_ipi_status);
-
-unsigned int __read_mostly sysctl_sched_urgent_vcpu_first = 0;
-EXPORT_SYMBOL_GPL(sysctl_sched_urgent_vcpu_first);
-
-void enqueue_urgent_task(struct task_struct *p)
+unsigned int __read_mostly sysctl_sched_urgent_enabled;
+void set_urgent_task(struct task_struct *p, u64 tslice)
 {
         struct rq *rq;
         unsigned long flags;
 	struct sched_entity *se = &p->se;
+	
+	if (!sysctl_sched_urgent_enabled || !tslice)
+		return;
 
         rq = task_rq_lock(p, &flags);
 	for_each_sched_entity(se) 
-		enqueue_urgent_entity(se, 0);
+		set_urgent_entity(se, 0, tslice);
         task_rq_unlock(rq, p, &flags); 
 }
-EXPORT_SYMBOL_GPL(enqueue_urgent_task);
+EXPORT_SYMBOL_GPL(set_urgent_task);
 #endif

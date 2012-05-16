@@ -74,6 +74,25 @@ module_param_named(trace_lock_holder_tgid,
 		   trace_lock_holder_tgid, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(trace_lock_holder_tgid,
  "Trace guest lock holder when a vcpu is scheduled out.");
+
+unsigned long tlb_shootdown_latency_ns;
+module_param_named(tlb_shootdown_latency_ns,
+		   tlb_shootdown_latency_ns, 
+		   ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(tlb_shootdown_latency_ns,
+ "Latency (in ns) between TLB-shootdown-IPI reception and shootdown completion");
+unsigned long resched_ipi_unlock_latency_ns;
+module_param_named(resched_ipi_unlock_latency_ns,
+		   resched_ipi_unlock_latency_ns, 
+		   ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(resched_ipi_unlock_latency_ns,
+ "Latency (in ns) between reschedule-IPI xmit and guest lock release");
+unsigned long resched_ipi_cosched_tslice_ns;
+module_param_named(resched_ipi_cosched_tslice_ns,
+		   resched_ipi_cosched_tslice_ns, 
+		   ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(resched_ipi_cosched_tslice_ns,
+ "Time slice (in ns) in response to reschedule IPI");
 #endif
 
 MODULE_AUTHOR("Qumranet");
