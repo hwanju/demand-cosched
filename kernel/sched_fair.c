@@ -516,13 +516,13 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 			remaining_tslice,
 			remaining_runtime);
 }
-void set_urgent_entity(struct sched_entity *se, int force_enqueue, u64 tslice)
+void set_urgent_entity(struct sched_entity *se, int sync, u64 tslice)
 {
         struct cfs_rq *cfs_rq = cfs_rq_of(se);
 
 	se->urgent = 1;
 
-	if (!force_enqueue) {	/* from external patch (e.g. KVM IPI-related) */
+	if (!sync) {	/* from external patch (e.g. KVM IPI-related) */
 		/* if not on rq, recalled by __enqueue_entity afterward */
 		if (!se->on_rq) {
 			/* __enqueue_entity calls it with se->urgent_tslice
@@ -551,14 +551,14 @@ void set_urgent_entity(struct sched_entity *se, int force_enqueue, u64 tslice)
 			entity_is_task(se) ? task_of(se) : NULL,
 			cpu_of(rq_of(cfs_rq)), 
 			se->urgent_tslice,
-			force_enqueue,
+			sync,
 			0);
 
 	if (entity_is_task(se) && se != cfs_rq->curr) {
 		/* from IPI-recv path, rq clock is not updated 
 		 * because IPI is an asynchronous event, so update 
 		 * is required to inspect remaining urgent tslice */
-		if (!force_enqueue)
+		if (!sync)
 			update_rq_clock(rq_of(cfs_rq));
 		resched_task(rq_of(cfs_rq)->curr);
 	}
