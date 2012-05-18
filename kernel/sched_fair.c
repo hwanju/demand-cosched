@@ -422,7 +422,9 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 	    se->urgent_sum_exec_runtime < se->prev_sum_exec_runtime)
 		se->urgent_sum_exec_runtime = se->sum_exec_runtime;
 
+	/* 10us <= delay <= sysctl_sched_urgent_tslice_limit_ns */
 	delay = max_t(s64, 10000LL, delay);
+	delay = min_t(s64, delay, sysctl_sched_urgent_tslice_limit_ns);
 	hrtick_start(rq, delay);
 
 	trace_sched_urgent_entity(9,	/* utm */
@@ -521,18 +523,27 @@ void set_urgent_entity(struct sched_entity *se, int force_enqueue, u64 tslice)
 	se->urgent = 1;
 
 	if (!force_enqueue) {	/* from external patch (e.g. KVM IPI-related) */
-		if (!se->on_rq)
+		/* if not on rq, recalled by __enqueue_entity afterward */
+		if (!se->on_rq) {
+			/* __enqueue_entity calls it with se->urgent_tslice
+			 * so, remember requested tslice */
+			if (entity_is_task(se))
+				se->urgent_tslice = tslice;
 			return;
+		}
 		if (cfs_rq->curr == se) {
 			if (entity_is_task(se))
 				mod_urgent_tslice(task_of(se), tslice);
 			return;
 		}
 	}
-	if (!list_empty(&se->urgent_node)) 
+	if (!list_empty(&se->urgent_node)) { 
+		/* add tslice to waiting urgent task */
+		se->urgent_tslice += tslice;
 		return;
+	}
 
-	/* assign time slice */
+	/* assign new time slice */
 	se->urgent_tslice = tslice;
 
 	list_add_tail(&se->urgent_node, &cfs_rq->urgent_queue);
