@@ -516,7 +516,7 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 			remaining_tslice,
 			remaining_runtime);
 }
-void set_urgent_entity(struct sched_entity *se, int sync, u64 tslice)
+void set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 {
         struct cfs_rq *cfs_rq = cfs_rq_of(se);
 
@@ -630,7 +630,7 @@ static void __enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se)
 	rb_insert_color(&se->run_node, &cfs_rq->tasks_timeline);
 #ifdef CONFIG_BALANCE_SCHED
         if (se->urgent)
-                set_urgent_entity(se, 1, se->urgent_tslice);
+                set_urgent_entity(se, se->urgent_tslice, 1);
 #endif
 }
 
