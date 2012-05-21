@@ -499,7 +499,7 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 	struct sched_entity *se = &p->se;
 	struct cfs_rq *cfs_rq = cfs_rq_of(se);
 	struct rq *rq = rq_of(cfs_rq);
-	s64 remaining_tslice;
+	u64 exec_runtime;
 	s64 remaining_runtime = 0;
 
 	if (!se->urgent)
@@ -508,11 +508,20 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 
 	update_rq_clock(rq);
 	update_curr(cfs_rq);
-	remaining_tslice = remaining_urgent_tslice(se);
 
-	se->urgent_tslice = 
-		se->urgent_tslice - remaining_tslice + tslice;
-	
+	exec_runtime = se->sum_exec_runtime - se->prev_sum_exec_runtime;
+
+	/* if urgent_tslice hasn't been assigned yet, or
+	 * this modification is carried out by itself, 
+	 * forget past urgent_tslice; it means self-modification 
+	 * is done in non-nested urgent context (e.g., resched IPI
+	 * transimission */
+	if (!se->urgent_tslice || p == current)
+		se->urgent_tslice = exec_runtime + tslice;
+	else	/* if not self-updated, just add tslice */
+		se->urgent_tslice += tslice;
+	tslice = se->urgent_tslice - exec_runtime;
+
 	if (hrtimer_active(&rq->hrtick_timer) &&
 	    (remaining_runtime = remaining_urgent_runtime(se)) > 0) {
 		tslice = min_t(u64, remaining_runtime, tslice);
@@ -522,7 +531,7 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 			p, 
 			cpu_of(rq), 
 			se->urgent_tslice, 
-			remaining_tslice,
+			exec_runtime,
 			remaining_runtime);
 }
 void set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
