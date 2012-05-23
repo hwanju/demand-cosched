@@ -306,6 +306,53 @@ TRACE_EVENT(
 
 #endif
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+TRACE_EVENT(
+	kvm_lock_holder,
+	TP_PROTO(struct kvm_vcpu *vcpu, struct task_struct *p, 
+		s8 depth, u64 eip1, u64 eip2, u64 eip3, u64 eip4,
+		long caller_info, int point_flag, 
+		unsigned long guest_ip, int user_mode),
+
+	TP_ARGS(vcpu, p, depth, eip1, eip2, eip3, eip4, 
+		caller_info, point_flag, guest_ip, user_mode),
+
+	TP_STRUCT__entry(
+		__field(int,	vcpu_id)
+		__field(s8,	depth)
+		__field(u64,	eip1)
+		__field(u64,	eip2)
+		__field(u64,	eip3)
+		__field(u64,	eip4)
+		__field(long,	caller_info)
+		__field(int,	point_flag)
+		__field(unsigned long,	guest_ip)
+		__field(int,	user_mode)
+		),
+
+	TP_fast_assign(
+			__entry->vcpu_id	= vcpu->vcpu_id;
+			__entry->depth		= depth;
+			__entry->eip1		= eip1;
+			__entry->eip2		= eip2;
+			__entry->eip3		= eip3;
+			__entry->eip4		= eip4;
+			__entry->caller_info	= caller_info;
+			__entry->point_flag	= point_flag;
+			__entry->guest_ip	= guest_ip;
+			__entry->user_mode	= user_mode;
+		),
+
+	TP_printk("vcpu_id=%d depth=%d eip1=%llx eip2=%llx eip3=%llx eip4=%llx \
+			caller_info=%ld point_flag=%d guest_ip=%lu user_mode=%d",
+			__entry->vcpu_id,
+			__entry->depth, 
+			__entry->eip1, __entry->eip1, __entry->eip2, __entry->eip4,
+			__entry->caller_info, __entry->point_flag, 
+			__entry->guest_ip, __entry->user_mode)
+);
+#endif
+
 #endif /* _TRACE_KVM_MAIN_H */
 
 /* This part must be outside protection */

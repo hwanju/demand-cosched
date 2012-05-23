@@ -1532,16 +1532,27 @@ static void record_steal_time(struct kvm_vcpu *vcpu)
 }
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-int kvm_get_lock_holder(struct kvm_vcpu *vcpu, 
-		         long caller_info, int point_flag)
+int kvm_get_lock_holder(struct kvm_vcpu *vcpu, struct task_struct *p, 
+		         long caller_info, int point_flag, 
+			 unsigned long guest_ip, int user_mode)
 {
-        /* caller_info & point_flag is only used by tracing for now */
+        /* p & caller_info & point_flag & guest_ip & user_mode 
+	 * is used by tracing for now */
 
 	if (!(vcpu->arch.lh.msr_val & KVM_MSR_ENABLED))
 		return 0;
 
 	kvm_read_guest_cached(vcpu->kvm, &vcpu->arch.lh.lh_info,
 		&vcpu->arch.lh.lock_holder, sizeof(struct kvm_lock_holder));
+
+	trace_kvm_lock_holder(vcpu, p, 
+			vcpu->arch.lh.lock_holder.depth,
+			vcpu->arch.lh.lock_holder.eip[0],
+			vcpu->arch.lh.lock_holder.eip[1],
+			vcpu->arch.lh.lock_holder.eip[2],
+			vcpu->arch.lh.lock_holder.eip[3],
+			caller_info, point_flag, 
+			guest_ip, user_mode);
 	return 1;
 }
 EXPORT_SYMBOL_GPL(kvm_get_lock_holder);
@@ -5237,6 +5248,9 @@ int kvm_arch_init(void *opaque)
 	kvm_timer_init();
 
 	perf_register_guest_info_callbacks(&kvm_guest_cbs);
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	trace_register_guest_info_callbacks(&kvm_guest_cbs);
+#endif
 
 	if (cpu_has_xsave)
 		host_xcr0 = xgetbv(XCR_XFEATURE_ENABLED_MASK);
@@ -5250,6 +5264,9 @@ out:
 void kvm_arch_exit(void)
 {
 	perf_unregister_guest_info_callbacks(&kvm_guest_cbs);
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	trace_unregister_guest_info_callbacks(&kvm_guest_cbs);
+#endif
 
 	if (!boot_cpu_has(X86_FEATURE_CONSTANT_TSC))
 		cpufreq_unregister_notifier(&kvmclock_cpufreq_notifier_block,

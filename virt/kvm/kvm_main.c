@@ -75,6 +75,45 @@ module_param_named(trace_lock_holder_tgid,
 MODULE_PARM_DESC(trace_lock_holder_tgid,
  "Trace guest lock holder when a vcpu is scheduled out.");
 
+struct perf_guest_info_callbacks *trace_guest_cbs;
+int trace_register_guest_info_callbacks(struct perf_guest_info_callbacks *cbs)
+{
+	trace_guest_cbs = cbs;
+	return 0;
+}
+int trace_unregister_guest_info_callbacks(struct perf_guest_info_callbacks *cbs)
+{
+	trace_guest_cbs = NULL;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(trace_guest_cbs);
+
+void kvm_before_handle_nmi(struct kvm_vcpu *vcpu);
+void kvm_after_handle_nmi(struct kvm_vcpu *vcpu);
+int kvm_get_lock_holder(struct kvm_vcpu *vcpu, struct task_struct *p,
+			 long caller_info, int point_flag,
+			 unsigned long guest_ip, int user_mode);
+void check_lock_holder(struct kvm_vcpu *vcpu, long caller_info, int point_flag)
+{
+	if (trace_lock_holder & point_flag &&
+	    (!trace_lock_holder_tgid || /* for every process */ 
+	     trace_lock_holder_tgid == current->tgid)) {
+		unsigned long guest_ip = 0;
+		int user_mode = -1;
+		if (trace_guest_cbs) {
+			kvm_before_handle_nmi(vcpu);
+			guest_ip = trace_guest_cbs->get_guest_ip();
+			user_mode = trace_guest_cbs->is_user_mode();
+			kvm_after_handle_nmi(vcpu);
+		}
+		kvm_get_lock_holder(vcpu, current, caller_info, 
+				point_flag, guest_ip, user_mode);
+	}
+}
+EXPORT_SYMBOL_GPL(check_lock_holder);
+#endif
+
+#ifdef CONFIG_BALANCE_SCHED
 unsigned long tlb_shootdown_latency_ns;
 module_param_named(tlb_shootdown_latency_ns,
 		   tlb_shootdown_latency_ns, 

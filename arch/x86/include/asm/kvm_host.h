@@ -738,19 +738,12 @@ void kvm_get_cs_db_l_bits(struct kvm_vcpu *vcpu, int *db, int *l);
 int kvm_set_xcr(struct kvm_vcpu *vcpu, u32 index, u64 xcr);
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
-extern int trace_lock_holder;
-extern int trace_lock_holder_tgid;
-int kvm_get_lock_holder(struct kvm_vcpu *vcpu, 
-			 long caller_info, int point_flag);
-static inline void check_lock_holder(struct kvm_vcpu *vcpu,
-				     long caller_info,
-				     int point_flag)
-{
-	if (trace_lock_holder & point_flag &&
-	    (!trace_lock_holder_tgid || /* for every process */ 
-	     trace_lock_holder_tgid == current->tgid))
-		kvm_get_lock_holder(vcpu, caller_info, point_flag);
-}
+#include <linux/perf_event.h>
+extern int trace_register_guest_info_callbacks(
+		struct perf_guest_info_callbacks *cbs);
+extern int trace_unregister_guest_info_callbacks(
+		struct perf_guest_info_callbacks *cbs);
+void check_lock_holder(struct kvm_vcpu *vcpu, long caller_info, int point_flag);
 #endif
 
 int kvm_get_msr_common(struct kvm_vcpu *vcpu, u32 msr, u64 *pdata);
