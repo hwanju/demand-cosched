@@ -434,8 +434,8 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 	if (urgent_runtime(se) + delay >= sysctl_sched_urgent_tslice_limit_ns)
 		se->urgent = URGENT_EXPIRED;
 
-	/* ensure 10us <= delay <= sysctl_sched_urgent_tslice_limit_ns */
-	delay = max_t(s64, 10000LL, delay);
+	/* ensure 30us <= delay <= sysctl_sched_urgent_tslice_limit_ns */
+	delay = max_t(s64, 30000LL, delay);
 	delay = min_t(s64, delay, sysctl_sched_urgent_tslice_limit_ns);
 	hrtick_start(rq, delay);
 
@@ -1487,8 +1487,12 @@ static struct sched_entity *pick_next_entity(struct cfs_rq *cfs_rq)
 
 #ifdef CONFIG_BALANCE_SCHED
         struct sched_entity *p, *n;
+	int nr_failed = 0;
 
         list_for_each_entry_safe(p, n, &cfs_rq->urgent_queue, urgent_node) {
+		/* prevent excessive iterations */
+		if (unlikely(++nr_failed > 3))
+			break;
                 trace_sched_urgent_entity(3,	/* iter */
 				entity_is_task(p) ? task_of(p) : NULL, 
 				se->cfs_rq->rq->cpu, 
@@ -3050,8 +3054,6 @@ static struct task_struct *pick_next_task_fair(struct rq *rq)
 #ifdef CONFIG_BALANCE_SCHED
 	if (se->urgent && check_need_hrtick(se))
 		mod_urgent_timer(se, se->urgent_tslice);
-	else	/* double check for hrtick enabled via IPI */
-		hrtick_clear(rq);
 #endif
 	return p;
 }

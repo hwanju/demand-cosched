@@ -698,9 +698,6 @@ struct rq {
 #ifdef CONFIG_SMP
 	int hrtick_csd_pending;
 	struct call_single_data hrtick_csd;
-#ifdef CONFIG_BALANCE_SCHED
-	struct task_struct *hrtick_pending_task;
-#endif
 #endif
 	struct hrtimer hrtick_timer;
 #endif
@@ -1222,9 +1219,6 @@ static void __hrtick_start(void *arg)
 	struct rq *rq = arg;
 
 	raw_spin_lock(&rq->lock);
-#ifdef CONFIG_BALANCE_SCHED
-	if (rq->curr == rq->hrtick_pending_task)
-#endif
 	hrtimer_restart(&rq->hrtick_timer);
 	rq->hrtick_csd_pending = 0;
 	raw_spin_unlock(&rq->lock);
@@ -1245,9 +1239,6 @@ static void hrtick_start(struct rq *rq, u64 delay)
 	if (rq == this_rq()) {
 		hrtimer_restart(timer);
 	} else if (!rq->hrtick_csd_pending) {
-#ifdef CONFIG_BALANCE_SCHED
-		rq->hrtick_pending_task = rq->curr;
-#endif
 		__smp_call_function_single(cpu_of(rq), &rq->hrtick_csd, 0);
 		rq->hrtick_csd_pending = 1;
 	}
