@@ -2629,9 +2629,9 @@ static inline int load_balanced(struct task_group *tg, int cpu,
 	unsigned cpu_load = weighted_cpuload(cpu);
 	if (!avg_load || !cpu_load || !sysctl_balsched_load_imbalance_pct)
 		return 1;
-	if (unlikely(sysctl_balsched_load_imbalance_pct != 100)) {
-		avg_load *= sysctl_balsched_load_imbalance_pct;
-		avg_load /= 100;
+	if (sysctl_balsched_load_imbalance_pct != 100) {
+		cpu_load *= sysctl_balsched_load_imbalance_pct;
+		cpu_load /= 100;
 	}
 	return cpu_load <= avg_load;
 }
