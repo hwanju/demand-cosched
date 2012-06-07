@@ -1206,8 +1206,6 @@ struct sched_entity {
 #define VCPU_SE         1
 #define NEW_VCPU_SE     2
         int is_vcpu;
-        /* if set, a ipi has been sent during this timeslice 
-         * and the followings are types */
 
         struct list_head urgent_node;
         int urgent;
