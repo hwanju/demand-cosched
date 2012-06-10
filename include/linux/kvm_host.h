@@ -284,6 +284,11 @@ struct kvm {
 	long mmu_notifier_count;
 #endif
 	long tlbs_dirty;
+#ifdef CONFIG_BALANCE_SCHED
+#define KVM_OS_LINUX	1
+#define KVM_OS_WINDOWS	2
+	int os_type;
+#endif
 };
 
 /* The guest did something we don't support. */

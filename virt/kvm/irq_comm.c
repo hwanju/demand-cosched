@@ -35,10 +35,26 @@
 extern unsigned long tlb_shootdown_latency_ns;
 extern unsigned long resched_ipi_unlock_latency_ns;
 extern unsigned long resched_ipi_cosched_tslice_ns;
-#define is_resched_ipi(vector)		(vector == RESCHEDULE_VECTOR)
-#define is_tlb_shootdown_ipi(vector)	\
-	(vector >= INVALIDATE_TLB_VECTOR_START && \
-	 vector <= INVALIDATE_TLB_VECTOR_END)
+/* this function is a hack based on that 0x2f doesn't occur at Linux */
+static inline void check_os_type_by_ipi(struct kvm *kvm, u32 vector)
+{
+	/* if os_type is assigned as windows, need not check any more */
+	if (kvm->os_type == KVM_OS_WINDOWS)
+		return;
+	kvm->os_type = vector == 0x2f ? KVM_OS_WINDOWS : KVM_OS_LINUX; 
+}
+static inline int is_resched_ipi(struct kvm *kvm, u32 vector)
+{
+	return (kvm->os_type == KVM_OS_LINUX && vector == RESCHEDULE_VECTOR) ||
+	       (kvm->os_type == KVM_OS_WINDOWS && vector == 0x2f);
+}
+static inline int is_tlb_shootdown_ipi(struct kvm *kvm, u32 vector)
+{
+	return (kvm->os_type == KVM_OS_LINUX && 
+		vector >= INVALIDATE_TLB_VECTOR_START &&
+		vector <= INVALIDATE_TLB_VECTOR_END) ||
+	       (kvm->os_type == KVM_OS_WINDOWS && vector == 0xe1);
+}
 #endif
 
 #include "irq.h"
@@ -101,9 +117,11 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 		printk(KERN_INFO "kvm: apic: phys broadcast and lowest prio\n");
 
 #ifdef CONFIG_BALANCE_SCHED
+	if (irq->ipi == 1)
+		check_os_type_by_ipi(kvm, irq->vector);
         if (irq->ipi == 1 && 
 	    resched_ipi_unlock_latency_ns && 
-	    is_resched_ipi(irq->vector))
+	    is_resched_ipi(kvm, irq->vector))
 		set_urgent_task(current, resched_ipi_unlock_latency_ns);
 #endif
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
@@ -123,13 +141,13 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
                         if (irq->ipi == 1 && 
 			    i != src->vcpu->vcpu_id &&
 			    ((tlb_shootdown_latency_ns && 
-			    is_tlb_shootdown_ipi(irq->vector)) ||
+			    is_tlb_shootdown_ipi(kvm, irq->vector)) ||
 			    (resched_ipi_cosched_tslice_ns &&
-			     is_resched_ipi(irq->vector)))) {
+			     is_resched_ipi(kvm, irq->vector)))) {
                                 struct task_struct *task = NULL;
                                 struct pid *pid;
 				unsigned long tslice = 
-					is_tlb_shootdown_ipi(irq->vector) ?
+					is_tlb_shootdown_ipi(kvm, irq->vector) ?
 					tlb_shootdown_latency_ns :
 					resched_ipi_cosched_tslice_ns;
 
