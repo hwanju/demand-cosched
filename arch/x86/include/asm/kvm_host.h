@@ -547,6 +547,12 @@ struct kvm_vcpu_stat {
 	u32 hypercalls;
 	u32 irq_injections;
 	u32 nmi_injections;
+#ifdef CONFIG_BALANCE_SCHED
+	u32 resched_ipi_sent;
+	u32 resched_ipi_recv;
+	u32 tlb_ipi_sent;
+	u32 tlb_ipi_recv;
+#endif
 };
 
 struct x86_instruction_info;

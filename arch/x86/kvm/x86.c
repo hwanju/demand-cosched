@@ -139,6 +139,12 @@ struct kvm_stats_debugfs_item debugfs_entries[] = {
 	{ "insn_emulation_fail", VCPU_STAT(insn_emulation_fail) },
 	{ "irq_injections", VCPU_STAT(irq_injections) },
 	{ "nmi_injections", VCPU_STAT(nmi_injections) },
+#ifdef CONFIG_BALANCE_SCHED
+	{ "resched_ipi_sent", VCPU_STAT(resched_ipi_sent) },
+	{ "resched_ipi_recv", VCPU_STAT(resched_ipi_recv) },
+	{ "tlb_ipi_sent", VCPU_STAT(tlb_ipi_sent) },
+	{ "tlb_ipi_recv", VCPU_STAT(tlb_ipi_recv) },
+#endif
 	{ "mmu_shadow_zapped", VM_STAT(mmu_shadow_zapped) },
 	{ "mmu_pte_write", VM_STAT(mmu_pte_write) },
 	{ "mmu_pte_updated", VM_STAT(mmu_pte_updated) },

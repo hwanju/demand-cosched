@@ -388,6 +388,7 @@ static int can_urgently_preempt(struct sched_entity *left, struct sched_entity *
         if (se->vruntime - left->vruntime < sysctl_sched_urgent_latency_ns)
                 return 1;
 
+	se->statistics.nr_urgent_pick_fail++;
         trace_sched_urgent_entity(5, /* fail */
 			entity_is_task(se) ? task_of(se) : NULL, 
                         se->cfs_rq->rq->cpu, 
@@ -439,6 +440,7 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 	delay = min_t(s64, delay, sysctl_sched_urgent_tslice_limit_ns);
 	hrtick_start(rq, delay);
 
+	se->statistics.nr_urgent_timer_set++;
 	trace_sched_urgent_entity(9,	/* utm */
 			task_of(se),
 			cpu_of(rq),

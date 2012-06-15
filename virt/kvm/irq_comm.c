@@ -117,8 +117,14 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 		printk(KERN_INFO "kvm: apic: phys broadcast and lowest prio\n");
 
 #ifdef CONFIG_BALANCE_SCHED
-	if (irq->ipi == 1)
+	/* stat update */
+	if (irq->ipi == 1) {
 		check_os_type_by_ipi(kvm, irq->vector);
+		if (is_resched_ipi(kvm, irq->vector))
+			src->vcpu->stat.resched_ipi_sent++;
+		else if (is_tlb_shootdown_ipi(kvm, irq->vector))
+			src->vcpu->stat.tlb_ipi_sent++;
+	}
         if (irq->ipi == 1 && 
 	    resched_ipi_unlock_latency_ns && 
 	    is_resched_ipi(kvm, irq->vector))
@@ -138,6 +144,12 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 
 		if (!kvm_is_dm_lowest_prio(irq)) {
 #ifdef CONFIG_BALANCE_SCHED
+			/* stat update */
+			if (is_resched_ipi(kvm, irq->vector))
+				vcpu->stat.resched_ipi_recv++;
+			else if (is_tlb_shootdown_ipi(kvm, irq->vector))
+				vcpu->stat.tlb_ipi_recv++;
+
                         if (irq->ipi == 1 && 
 			    i != src->vcpu->vcpu_id &&
 			    ((tlb_shootdown_latency_ns && 
