@@ -2629,10 +2629,6 @@ static inline int load_balanced(struct task_group *tg, int cpu,
 	unsigned cpu_load = weighted_cpuload(cpu);
 	if (!avg_load || !cpu_load || !sysctl_balsched_load_imbalance_pct)
 		return 1;
-	if (sysctl_balsched_load_imbalance_pct != 100) {
-		cpu_load *= sysctl_balsched_load_imbalance_pct;
-		cpu_load /= 100;
-	}
 	return cpu_load <= avg_load;
 }
 static inline void try_to_balance_affine(struct task_struct *p) 
@@ -2665,6 +2661,10 @@ static inline void try_to_balance_affine(struct task_struct *p)
                 for_each_cpu(i, cpu_active_mask)
 			avg_load += weighted_cpuload(i);
 		avg_load /= num_active_cpus();
+		if (sysctl_balsched_load_imbalance_pct != 100) {
+			avg_load *= sysctl_balsched_load_imbalance_pct;
+			avg_load /= 100;
+		}
 		for_each_cpu(i, &balanced_cpus_allowed) {
 			nr_eligible_cpus += 
 				load_balanced(tg, i, avg_load);
