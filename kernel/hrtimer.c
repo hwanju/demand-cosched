@@ -1007,7 +1007,11 @@ int __hrtimer_start_range_ns(struct hrtimer *timer, ktime_t tim,
 int hrtimer_start_range_ns(struct hrtimer *timer, ktime_t tim,
 		unsigned long delta_ns, const enum hrtimer_mode mode)
 {
+#ifndef CONFIG_BALANCE_SCHED
 	return __hrtimer_start_range_ns(timer, tim, delta_ns, mode, 1);
+#else
+	return __hrtimer_start_range_ns(timer, tim, delta_ns, mode, !(mode & HRTIMER_MODE_ABS_NOWAKEUP));
+#endif
 }
 EXPORT_SYMBOL_GPL(hrtimer_start_range_ns);
 
