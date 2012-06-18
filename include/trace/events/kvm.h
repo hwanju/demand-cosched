@@ -114,6 +114,28 @@ TRACE_EVENT(kvm_msi_set_irq,
 		  (__entry->address & (1<<3)) ? "|rh" : "")
 );
 
+#ifdef CONFIG_BALANCE_SCHED
+TRACE_EVENT(kvm_ipi,
+	    TP_PROTO(struct kvm_vcpu *src_vcpu, struct kvm_vcpu *dst_vcpu, struct kvm_lapic_irq *irq),
+	    TP_ARGS(src_vcpu, dst_vcpu, irq),
+
+	TP_STRUCT__entry(
+		__field(	int,		src_vcpu_id	)
+		__field(	int,		dst_vcpu_id	)
+		__field(	u32,		vector		)
+	),
+
+	TP_fast_assign(
+		__entry->src_vcpu_id	= src_vcpu->vcpu_id;
+		__entry->dst_vcpu_id	= dst_vcpu->vcpu_id;
+		__entry->vector		= irq->vector;
+	),
+
+	TP_printk("src_vcpu_id=%d dst_vcpu_id=%d vector=%u\n", 
+		__entry->src_vcpu_id, __entry->dst_vcpu_id, __entry->vector)
+);
+#endif
+
 #define kvm_irqchips						\
 	{KVM_IRQCHIP_PIC_MASTER,	"PIC master"},		\
 	{KVM_IRQCHIP_PIC_SLAVE,		"PIC slave"},		\

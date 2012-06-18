@@ -145,11 +145,13 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 		if (!kvm_is_dm_lowest_prio(irq)) {
 #ifdef CONFIG_BALANCE_SCHED
 			/* stat update */
-			if (is_resched_ipi(kvm, irq->vector))
-				vcpu->stat.resched_ipi_recv++;
-			else if (is_tlb_shootdown_ipi(kvm, irq->vector))
-				vcpu->stat.tlb_ipi_recv++;
-
+			if (irq->ipi == 1) {
+				if (is_resched_ipi(kvm, irq->vector))
+					vcpu->stat.resched_ipi_recv++;
+				else if (is_tlb_shootdown_ipi(kvm, irq->vector))
+					vcpu->stat.tlb_ipi_recv++;
+				trace_kvm_ipi(src->vcpu, vcpu, irq);
+			}
                         if (irq->ipi == 1 && 
 			    i != src->vcpu->vcpu_id &&
 			    ((tlb_shootdown_latency_ns && 
