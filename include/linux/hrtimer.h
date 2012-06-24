@@ -36,9 +36,6 @@ enum hrtimer_mode {
 	HRTIMER_MODE_PINNED = 0x02,	/* Timer is bound to CPU */
 	HRTIMER_MODE_ABS_PINNED = 0x02,
 	HRTIMER_MODE_REL_PINNED = 0x03,
-#ifdef CONFIG_BALANCE_SCHED
-	HRTIMER_MODE_ABS_NOWAKEUP = 0x04,
-#endif
 };
 
 /*
@@ -376,12 +373,6 @@ static inline int hrtimer_restart(struct hrtimer *timer)
 {
 	return hrtimer_start_expires(timer, HRTIMER_MODE_ABS);
 }
-#ifdef CONFIG_BALANCE_SCHED
-static inline int hrtimer_restart_nowakeup(struct hrtimer *timer)
-{
-	return hrtimer_start_expires(timer, HRTIMER_MODE_ABS_NOWAKEUP);
-}
-#endif
 
 /* Query timers: */
 extern ktime_t hrtimer_get_remaining(const struct hrtimer *timer);

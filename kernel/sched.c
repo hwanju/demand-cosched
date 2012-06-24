@@ -1219,11 +1219,7 @@ static void __hrtick_start(void *arg)
 	struct rq *rq = arg;
 
 	raw_spin_lock(&rq->lock);
-#ifndef CONFIG_BALANCE_SCHED
 	hrtimer_restart(&rq->hrtick_timer);
-#else
-	hrtimer_restart_nowakeup(&rq->hrtick_timer);
-#endif
 	rq->hrtick_csd_pending = 0;
 	raw_spin_unlock(&rq->lock);
 }
@@ -1241,11 +1237,7 @@ static void hrtick_start(struct rq *rq, u64 delay)
 	hrtimer_set_expires(timer, time);
 
 	if (rq == this_rq()) {
-#ifndef CONFIG_BALANCE_SCHED
 		hrtimer_restart(timer);
-#else
-		hrtimer_restart_nowakeup(timer);
-#endif
 	} else if (!rq->hrtick_csd_pending) {
 		__smp_call_function_single(cpu_of(rq), &rq->hrtick_csd, 0);
 		rq->hrtick_csd_pending = 1;

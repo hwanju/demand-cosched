@@ -435,8 +435,10 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 	if (urgent_runtime(se) + delay >= sysctl_sched_urgent_tslice_limit_ns)
 		se->urgent = URGENT_EXPIRED;
 
-	/* ensure 30us <= delay <= sysctl_sched_urgent_tslice_limit_ns */
-	delay = max_t(s64, 30000LL, delay);
+	/* ensure 100us <= delay <= sysctl_sched_urgent_tslice_limit_ns
+	 * 100us is empirically safe for deadlock problem of rq lock
+	 * to prevent hrtick_start from calling directly wakeup_softirqd */
+	delay = max_t(s64, 100000LL, delay);
 	delay = min_t(s64, delay, sysctl_sched_urgent_tslice_limit_ns);
 	hrtick_start(rq, delay);
 
