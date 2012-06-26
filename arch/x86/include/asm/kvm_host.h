@@ -552,6 +552,8 @@ struct kvm_vcpu_stat {
 	u32 resched_ipi_recv;
 	u32 tlb_ipi_sent;
 	u32 tlb_ipi_recv;
+	u32 ple;
+	u32 ple_yield;
 #endif
 };
 

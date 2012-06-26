@@ -144,6 +144,8 @@ struct kvm_stats_debugfs_item debugfs_entries[] = {
 	{ "resched_ipi_recv", VCPU_STAT(resched_ipi_recv) },
 	{ "tlb_ipi_sent", VCPU_STAT(tlb_ipi_sent) },
 	{ "tlb_ipi_recv", VCPU_STAT(tlb_ipi_recv) },
+	{ "ple", VCPU_STAT(ple) },
+	{ "ple_yield", VCPU_STAT(ple) },
 #endif
 	{ "mmu_shadow_zapped", VM_STAT(mmu_shadow_zapped) },
 	{ "mmu_pte_write", VM_STAT(mmu_pte_write) },

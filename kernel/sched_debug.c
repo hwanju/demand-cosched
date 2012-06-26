@@ -454,8 +454,11 @@ void proc_sched_show_task(struct task_struct *p, struct seq_file *m)
 	P(se.statistics.nr_wakeups_passive);
 	P(se.statistics.nr_wakeups_idle);
 #ifdef CONFIG_BALANCE_SCHED
-	P(se.statistics.nr_urgent_timer_set);
-	P(se.statistics.nr_urgent_pick_fail);
+	P(se.statistics.nr_vcpu_stacked);
+	P(se.statistics.nr_balance_cancel);
+	P(se.statistics.nr_balance_migration_allowed);
+	P(se.statistics.nr_failed_migrations_balance);
+	P(se.statistics.nr_balance_affinity_cleared);
 #endif
 
 	{

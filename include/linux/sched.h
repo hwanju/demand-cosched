@@ -1164,8 +1164,12 @@ struct sched_statistics {
 	u64			nr_wakeups_passive;
 	u64			nr_wakeups_idle;
 #ifdef CONFIG_BALANCE_SCHED
-	u64			nr_urgent_timer_set;
-	u64			nr_urgent_pick_fail;
+	/* balance scheduling */
+	u64			nr_vcpu_stacked;
+	u64			nr_balance_cancel;
+	u64			nr_balance_migration_allowed;
+	u64			nr_failed_migrations_balance;
+	u64			nr_balance_affinity_cleared;
 #endif
 };
 #endif

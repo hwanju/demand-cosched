@@ -388,7 +388,6 @@ static int can_urgently_preempt(struct sched_entity *left, struct sched_entity *
         if (se->vruntime - left->vruntime < sysctl_sched_urgent_latency_ns)
                 return 1;
 
-	se->statistics.nr_urgent_pick_fail++;
         trace_sched_urgent_entity(5, /* fail */
 			entity_is_task(se) ? task_of(se) : NULL, 
                         se->cfs_rq->rq->cpu, 
@@ -442,7 +441,6 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 	delay = min_t(s64, delay, sysctl_sched_urgent_tslice_limit_ns);
 	hrtick_start(rq, delay);
 
-	se->statistics.nr_urgent_timer_set++;
 	trace_sched_urgent_entity(9,	/* utm */
 			task_of(se),
 			cpu_of(rq),
@@ -967,6 +965,8 @@ account_entity_enqueue(struct cfs_rq *cfs_rq, struct sched_entity *se)
         if (se->is_vcpu) {
                 se->is_vcpu = VCPU_SE;
                 cfs_rq->nr_running_vcpus++;
+		if (cfs_rq->nr_running_vcpus > 1)
+			schedstat_inc(task_of(se), se.statistics.nr_vcpu_stacked);
         }
 #endif
 }
@@ -3161,6 +3161,7 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
                 trace_balsched_update_affinity(0, p, 
                                 tg->se[this_cpu]->my_q->nr_running_vcpus,
                                 p->cpus_allowed.bits[0]); 
+		schedstat_inc(p, se.statistics.nr_balance_affinity_cleared);
         }
 #endif
 	/*
@@ -3178,11 +3179,16 @@ int can_migrate_task(struct task_struct *p, struct rq *rq, int this_cpu,
                     (tg->balsched == BALSCHED_VCPUS_MIGRATION &&
                      tg->se[this_cpu]->my_q->nr_running_vcpus == 0)) { 
 			cpu_set(this_cpu, p->cpus_allowed);
+			schedstat_inc(p, 
+				se.statistics.nr_balance_migration_allowed);
 			trace_balsched_update_affinity(1, p, 
 					tg->se[this_cpu]->my_q->nr_running_vcpus, 
 					p->cpus_allowed.bits[0]); 
                         goto skip_affinity_violation;
                 }
+		if (tg->balsched == BALSCHED_VCPUS_MIGRATION)
+			schedstat_inc(p, 
+				se.statistics.nr_failed_migrations_balance);
 #endif
 		schedstat_inc(p, se.statistics.nr_failed_migrations_affine);
 		return 0;

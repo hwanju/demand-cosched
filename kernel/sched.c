@@ -2673,8 +2673,10 @@ static inline void try_to_balance_affine(struct task_struct *p)
 					nr_eligible_cpus, 
 					tg->se[i]->my_q->nr_running_vcpus);
 		}
-		if (nr_eligible_cpus == 0)	/* give up balance scheduling */
+		if (nr_eligible_cpus == 0) {	/* give up balance scheduling */
 			affinity_updated = 0;
+			se->statistics.nr_balance_cancel++;
+		}
 	}
         /* if no idle cpu exists, return the affinity to all cpus */
         if (unlikely(!affinity_updated))

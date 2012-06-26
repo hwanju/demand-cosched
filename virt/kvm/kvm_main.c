@@ -1659,11 +1659,17 @@ void kvm_vcpu_on_spin(struct kvm_vcpu *me)
 				put_task_struct(task);
 				kvm->last_boosted_vcpu = i;
 				yielded = 1;
+#ifdef CONFIG_BALANCE_SCHED
+				me->stat.ple_yield++;
+#endif
 				break;
 			}
 			put_task_struct(task);
 		}
 	}
+#ifdef CONFIG_BALANCE_SCHED
+	me->stat.ple++;
+#endif
 }
 EXPORT_SYMBOL_GPL(kvm_vcpu_on_spin);
 
