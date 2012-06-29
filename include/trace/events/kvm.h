@@ -134,6 +134,26 @@ TRACE_EVENT(kvm_ipi,
 	TP_printk("src_vcpu_id=%d dst_vcpu_id=%d vector=%u\n", 
 		__entry->src_vcpu_id, __entry->dst_vcpu_id, __entry->vector)
 );
+
+TRACE_EVENT(kvm_ui,
+	TP_PROTO(struct kvm *kvm, unsigned long event_info),
+	TP_ARGS(kvm, event_info),
+
+	TP_STRUCT__entry(
+		__field(	int,		vm_id           )
+		__field(	int,		event_type      )
+		__field(	int,	        event_info      )
+	),
+
+	TP_fast_assign(
+		__entry->vm_id          = current->tgid;
+		__entry->event_type     = event_info & 0xff;
+		__entry->event_info     = (event_info >> 8) & 0xff;
+	),
+
+	TP_printk("vm_id=%d type=%d info=%d", 
+                __entry->vm_id, __entry->event_type, __entry->event_info)
+);
 #endif
 
 #define kvm_irqchips						\

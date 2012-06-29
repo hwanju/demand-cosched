@@ -132,6 +132,7 @@ module_param_named(resched_ipi_cosched_tslice_ns,
 		   ulong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(resched_ipi_cosched_tslice_ns,
  "Time slice (in ns) in response to reschedule IPI");
+
 #endif
 
 MODULE_AUTHOR("Qumranet");
@@ -2148,6 +2149,12 @@ static long kvm_vm_ioctl(struct file *filp,
 		else
 			kvm->bsp_vcpu_id = arg;
 		mutex_unlock(&kvm->lock);
+		break;
+#endif
+#ifdef CONFIG_BALANCE_SCHED
+	case KVM_UI_INFO:
+		trace_kvm_ui(kvm, arg);
+		r = 0;
 		break;
 #endif
 	default:

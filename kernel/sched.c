@@ -312,6 +312,7 @@ struct task_group {
 
 #ifdef CONFIG_BALANCE_SCHED
         enum balsched_mode balsched;
+        int ipisched;
 #endif
 
 	struct cfs_bandwidth cfs_bandwidth;
@@ -9587,6 +9588,26 @@ static u64 cpu_balsched_read_u64(struct cgroup *cgrp, struct cftype *cft)
 
         return (u64) tg->balsched;
 }
+static int cpu_ipisched_write_u64(struct cgroup *cgrp, struct cftype *cftype,
+                u64 shareval)
+{
+        struct task_group *tg = cgroup_tg(cgrp);
+
+	/* We can't enable balance scheduling for the root cgroup. */
+	if (!tg->se[0])
+		return -EINVAL;
+
+        tg->ipisched = (int) shareval;
+
+        return 0;
+}
+
+static u64 cpu_ipisched_read_u64(struct cgroup *cgrp, struct cftype *cft)
+{
+        struct task_group *tg = cgroup_tg(cgrp);
+
+        return (u64) tg->ipisched;
+}
 #endif
 
 #ifdef CONFIG_RT_GROUP_SCHED
@@ -9642,6 +9663,11 @@ static struct cftype cpu_files[] = {
                 .name = "balsched",
                 .read_u64 = cpu_balsched_read_u64,
                 .write_u64 = cpu_balsched_write_u64,
+        },
+        {
+                .name = "ipisched",
+                .read_u64 = cpu_ipisched_read_u64,
+                .write_u64 = cpu_ipisched_write_u64,
         },
 #endif
 #ifdef CONFIG_RT_GROUP_SCHED
@@ -9961,8 +9987,9 @@ void set_urgent_task(struct task_struct *p, u64 tslice)
         struct rq *rq;
         unsigned long flags;
 	struct sched_entity *se = &p->se;
+        struct task_group *tg = se->cfs_rq->tg;
 	
-	if (!sysctl_sched_urgent_enabled || !tslice)
+	if (!sysctl_sched_urgent_enabled || !tslice || !tg->ipisched)
 		return;
 
         rq = task_rq_lock(p, &flags);

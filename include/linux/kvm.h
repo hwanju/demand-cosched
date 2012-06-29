@@ -698,6 +698,9 @@ struct kvm_clock_data {
 /* Available with KVM_CAP_TSC_CONTROL */
 #define KVM_SET_TSC_KHZ           _IO(KVMIO,  0xa2)
 #define KVM_GET_TSC_KHZ           _IO(KVMIO,  0xa3)
+#ifdef CONFIG_BALANCE_SCHED
+#define KVM_UI_INFO               _IOW(KVMIO, 0xef, __u32)
+#endif
 
 /*
  * ioctls for vcpu fds
