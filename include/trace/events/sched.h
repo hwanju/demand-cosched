@@ -465,9 +465,9 @@ TRACE_EVENT(balsched_update_affinity,
                         __entry->tgid, __entry->pid, __entry->nr_running_vcpus, __entry->cpu_allowed_mask)
 )
 TRACE_EVENT(sched_urgent_entity,
-        TP_PROTO(int op, struct task_struct *p, int cpu, s64 arg1, s64 arg2, s64 arg3),
+        TP_PROTO(int op, struct task_struct *p, struct sched_entity *se, int cpu, s64 arg1, s64 arg2, s64 arg3),
 
-        TP_ARGS(op, p, cpu, arg1, arg2, arg3),
+        TP_ARGS(op, p, se, cpu, arg1, arg2, arg3),
 
         TP_STRUCT__entry(
                 __field( int,   op)

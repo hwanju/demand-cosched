@@ -9993,8 +9993,10 @@ void set_urgent_task(struct task_struct *p, u64 tslice)
 		return;
 
         rq = task_rq_lock(p, &flags);
-	for_each_sched_entity(se) 
-		set_urgent_entity(se, tslice, 0);
+	for_each_sched_entity(se) {
+		if (set_urgent_entity(se, tslice, 0))
+			break;
+	}
         task_rq_unlock(rq, p, &flags); 
 }
 EXPORT_SYMBOL_GPL(set_urgent_task);
