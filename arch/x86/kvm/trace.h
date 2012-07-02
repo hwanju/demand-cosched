@@ -819,6 +819,26 @@ TRACE_EVENT(
 		  __entry->write ? "Write" : "Read",
 		  __entry->gpa_match ? "GPA" : "GVA")
 );
+
+#ifdef CONFIG_BALANCE_SCHED
+TRACE_EVENT(
+	kvm_apic_eoi,
+	TP_PROTO(int vcpu_id, int vector),
+	TP_ARGS(vcpu_id, vector),
+
+	TP_STRUCT__entry(
+		__field(int, vcpu_id)
+		__field(int, vector)
+		),
+
+	TP_fast_assign(
+		__entry->vcpu_id = vcpu_id;
+		__entry->vector = vector;
+		),
+
+	TP_printk("vcpu_id=%d vector=0x%x", __entry->vcpu_id, __entry->vector)
+);
+#endif
 #endif /* _TRACE_KVM_H */
 
 #undef TRACE_INCLUDE_PATH
