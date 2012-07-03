@@ -779,5 +779,32 @@ static inline bool kvm_check_request(int req, struct kvm_vcpu *vcpu)
 	}
 }
 
+#ifdef CONFIG_BALANCE_SCHED
+#include <linux/sched.h>
+#include <asm/irq_vectors.h>
+extern unsigned long tlb_shootdown_cosched_enabled;
+extern unsigned long resched_ipi_unlock_latency_ns;
+extern unsigned long resched_ipi_cosched_tslice_ns;
+/* this function is a hack based on that 0x2f doesn't occur at Linux */
+static inline void check_os_type_by_ipi(struct kvm *kvm, u32 vector)
+{
+	/* if os_type is assigned as windows, need not check any more */
+	if (kvm->os_type == KVM_OS_WINDOWS)
+		return;
+	kvm->os_type = vector == 0x2f ? KVM_OS_WINDOWS : KVM_OS_LINUX; 
+}
+static inline int is_resched_ipi(struct kvm *kvm, u32 vector)
+{
+	return (kvm->os_type == KVM_OS_LINUX && vector == RESCHEDULE_VECTOR) ||
+	       (kvm->os_type == KVM_OS_WINDOWS && vector == 0x2f);
+}
+static inline int is_tlb_shootdown_ipi(struct kvm *kvm, u32 vector)
+{
+	return (kvm->os_type == KVM_OS_LINUX && 
+		vector >= INVALIDATE_TLB_VECTOR_START &&
+		vector <= INVALIDATE_TLB_VECTOR_END) ||
+	       (kvm->os_type == KVM_OS_WINDOWS && vector == 0xe1);
+}
+#endif
 #endif
 

@@ -9989,7 +9989,7 @@ void set_urgent_task(struct task_struct *p, u64 tslice)
 	struct sched_entity *se = &p->se;
         struct task_group *tg = se->cfs_rq->tg;
 	
-	if (!sysctl_sched_urgent_enabled || !tslice || !tg->ipisched)
+	if (!sysctl_sched_urgent_enabled || !tg->ipisched)
 		return;
 
         rq = task_rq_lock(p, &flags);

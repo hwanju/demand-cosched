@@ -29,34 +29,6 @@
 #include <asm/iosapic.h>
 #endif
 
-#ifdef CONFIG_BALANCE_SCHED
-#include <linux/sched.h>
-#include <asm/irq_vectors.h>
-extern unsigned long tlb_shootdown_latency_ns;
-extern unsigned long resched_ipi_unlock_latency_ns;
-extern unsigned long resched_ipi_cosched_tslice_ns;
-/* this function is a hack based on that 0x2f doesn't occur at Linux */
-static inline void check_os_type_by_ipi(struct kvm *kvm, u32 vector)
-{
-	/* if os_type is assigned as windows, need not check any more */
-	if (kvm->os_type == KVM_OS_WINDOWS)
-		return;
-	kvm->os_type = vector == 0x2f ? KVM_OS_WINDOWS : KVM_OS_LINUX; 
-}
-static inline int is_resched_ipi(struct kvm *kvm, u32 vector)
-{
-	return (kvm->os_type == KVM_OS_LINUX && vector == RESCHEDULE_VECTOR) ||
-	       (kvm->os_type == KVM_OS_WINDOWS && vector == 0x2f);
-}
-static inline int is_tlb_shootdown_ipi(struct kvm *kvm, u32 vector)
-{
-	return (kvm->os_type == KVM_OS_LINUX && 
-		vector >= INVALIDATE_TLB_VECTOR_START &&
-		vector <= INVALIDATE_TLB_VECTOR_END) ||
-	       (kvm->os_type == KVM_OS_WINDOWS && vector == 0xe1);
-}
-#endif
-
 #include "irq.h"
 
 #include "ioapic.h"
@@ -106,6 +78,42 @@ inline static bool kvm_is_dm_lowest_prio(struct kvm_lapic_irq *irq)
 #endif
 }
 
+#ifdef CONFIG_BALANCE_SCHED
+static void check_ipisched(struct kvm *kvm, struct kvm_lapic *src,
+                struct kvm_lapic_irq *irq, struct kvm_vcpu *vcpu)
+{
+        unsigned long tslice = 0;       /* set if time-based sched */
+        int event = 0;                  /* set if event-based sched */
+        if (is_resched_ipi(kvm, irq->vector)) {
+                vcpu->stat.resched_ipi_recv++;
+                tslice = resched_ipi_cosched_tslice_ns;
+        }
+        else if (is_tlb_shootdown_ipi(kvm, irq->vector)) {
+                vcpu->stat.tlb_ipi_recv++;
+                event = tlb_shootdown_cosched_enabled;
+        }
+        trace_kvm_ipi(src->vcpu, vcpu, irq);
+
+        if (vcpu != src->vcpu && (tslice || event)) {
+                struct task_struct *task = NULL;
+                struct pid *pid;
+                rcu_read_lock();
+                pid = rcu_dereference(vcpu->pid);
+                if (pid)
+                        task = get_pid_task(vcpu->pid, 
+                                        PIDTYPE_PID);
+                rcu_read_unlock();
+                if (task) {
+                        if (event)
+                                atomic_inc(&task->se.pending_urgent_events);
+                        if (tslice || event)
+                                set_urgent_task(task, tslice);
+                        put_task_struct(task);
+                }
+        }
+}
+#endif
+
 int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 		struct kvm_lapic_irq *irq)
 {
@@ -144,38 +152,8 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 
 		if (!kvm_is_dm_lowest_prio(irq)) {
 #ifdef CONFIG_BALANCE_SCHED
-			/* stat update */
-			if (irq->ipi == 1) {
-				if (is_resched_ipi(kvm, irq->vector))
-					vcpu->stat.resched_ipi_recv++;
-				else if (is_tlb_shootdown_ipi(kvm, irq->vector))
-					vcpu->stat.tlb_ipi_recv++;
-				trace_kvm_ipi(src->vcpu, vcpu, irq);
-			}
-                        if (irq->ipi == 1 && 
-			    i != src->vcpu->vcpu_id &&
-			    ((tlb_shootdown_latency_ns && 
-			    is_tlb_shootdown_ipi(kvm, irq->vector)) ||
-			    (resched_ipi_cosched_tslice_ns &&
-			     is_resched_ipi(kvm, irq->vector)))) {
-                                struct task_struct *task = NULL;
-                                struct pid *pid;
-				unsigned long tslice = 
-					is_tlb_shootdown_ipi(kvm, irq->vector) ?
-					tlb_shootdown_latency_ns :
-					resched_ipi_cosched_tslice_ns;
-
-                                rcu_read_lock();
-                                pid = rcu_dereference(vcpu->pid);
-                                if (pid)
-                                        task = get_pid_task(vcpu->pid, 
-							PIDTYPE_PID);
-                                rcu_read_unlock();
-                                if (task) {
-					set_urgent_task(task, tslice);
-                                        put_task_struct(task);
-                                }
-                        }
+                        if (irq->ipi == 1)
+                                check_ipisched(kvm, src, irq, vcpu);
 #endif
 			if (r < 0)
 				r = 0;

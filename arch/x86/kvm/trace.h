@@ -823,8 +823,8 @@ TRACE_EVENT(
 #ifdef CONFIG_BALANCE_SCHED
 TRACE_EVENT(
 	kvm_apic_eoi,
-	TP_PROTO(int vcpu_id, int vector),
-	TP_ARGS(vcpu_id, vector),
+	TP_PROTO(struct task_struct *p, int vcpu_id, int vector),
+	TP_ARGS(p, vcpu_id, vector),
 
 	TP_STRUCT__entry(
 		__field(int, vcpu_id)

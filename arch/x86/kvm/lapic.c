@@ -487,7 +487,10 @@ static void apic_set_eoi(struct kvm_lapic *apic)
 	if (vector == -1)
 		return;
 #ifdef CONFIG_BALANCE_SCHED
-	trace_kvm_apic_eoi(apic->vcpu->vcpu_id, vector);
+        if(tlb_shootdown_cosched_enabled &&
+           is_tlb_shootdown_ipi(apic->vcpu->kvm, vector))
+                atomic_dec(&current->se.pending_urgent_events);
+	trace_kvm_apic_eoi(current, apic->vcpu->vcpu_id, vector);
 #endif
 
 	apic_clear_vector(vector, apic->regs + APIC_ISR);

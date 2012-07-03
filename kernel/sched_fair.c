@@ -423,10 +423,6 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 {
 	struct rq *rq = rq_of(cfs_rq_of(se));
 	
-	if (delay < 0) {
-		printk(KERN_ERR "BUG: %s invalid delay: %lld\n", __func__, delay);
-		return;
-	}
 	/* update urgent_sum_exec_runtime for valid urgent_runtime() */
 	if (!hrtimer_active(&rq->hrtick_timer) ||
 	    se->urgent_sum_exec_runtime < se->prev_sum_exec_runtime)
@@ -448,7 +444,7 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 			se,
 			cpu_of(rq),
 			delay,
-			urgent_runtime(se),
+			atomic_read(&se->pending_urgent_events), //urgent_runtime(se),
 			se->urgent);
 }
 static void update_curr(struct cfs_rq *cfs_rq);
@@ -473,7 +469,8 @@ int should_delay_resched(struct task_struct *p)
 	else {	/* hrtimer is not running now, check how much delay */
 		/* at this time, make sure rq clock is updated */
 		update_curr(cfs_rq);	/* make runtime up-to-date */
-		if ((delta = remaining_urgent_tslice(se)) > 0) {
+		if ((delta = remaining_urgent_tslice(se)) > 0 ||
+                    atomic_read(&se->pending_urgent_events)) {
 			mod_urgent_timer(se, delta);
 			ret = 1;
 		}
@@ -506,17 +503,7 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 	update_curr(cfs_rq);
 
 	exec_runtime = se->sum_exec_runtime - se->prev_sum_exec_runtime;
-
-	/* if urgent_tslice hasn't been assigned yet, or
-	 * this modification is carried out by itself, 
-	 * forget past urgent_tslice; it means self-modification 
-	 * is done in non-nested urgent context (e.g., resched IPI
-	 * transimission */
-	if (!se->urgent_tslice || p == current)
-		se->urgent_tslice = exec_runtime + tslice;
-	else	/* if not self-updated, just add tslice */
-		se->urgent_tslice += tslice;
-	tslice = se->urgent_tslice - exec_runtime;
+	se->urgent_tslice = exec_runtime + tslice;
 
 	if (hrtimer_active(&rq->hrtick_timer) &&
 	    se->urgent != URGENT_EXPIRED &&
@@ -547,30 +534,18 @@ int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 	if (!sync) {	/* from external patch (e.g. KVM IPI-related) */
 		/* if not on rq, recalled by __enqueue_entity afterward */
 		if (!se->on_rq) {
-			/* __enqueue_entity calls it with se->urgent_tslice
-			 * so, remember requested tslice */
-			if (entity_is_task(se)) {
-				se->urgent_tslice += tslice;
-				trace_sched_urgent_entity(10,	/* ac1 */
-					task_of(se), se,
-					cpu_of(rq_of(cfs_rq)), 
-					se->urgent_tslice,
-					sync,
-					se->urgent);
-			}
+			if (entity_is_task(se))
+			        se->urgent_tslice = tslice;
 			return -1;	/* stop urgent setting from parent */
 		}
 		/* if currently running, extend urgent tslice if possible */
 		if (entity_is_task(se) && cfs_rq->curr == se) {
-			mod_urgent_tslice(task_of(se), tslice);
+                        if (tslice)
+			        mod_urgent_tslice(task_of(se), tslice);
 			return -1;	/* stop urgent setting from parent */
 		}
 	}
 	if (!list_empty(&se->urgent_node)) {	/* already urgent-queued */
-		/* add tslice to waiting urgent task */
-		if (entity_is_task(se))
-			se->urgent_tslice += tslice;
-
 		/* mostly se w/ URGENT_HEAD on urgent queue is a group entity */
 		if (se->urgent == URGENT_HEAD)
 			list_move(&se->urgent_node, &cfs_rq->urgent_queue);
@@ -586,7 +561,7 @@ int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 	}
 
 	/* assign new time slice, but if sync, no change */
-	if (entity_is_task(se))
+	if (tslice && entity_is_task(se))
 		se->urgent_tslice = tslice;
 
 	if (se->urgent == URGENT_TAIL)
@@ -616,6 +591,7 @@ static void put_urgent_entity(struct sched_entity *se)
 	/* check whether to reassign urgentness */
 	if (entity_is_task(se)) {	/* calculate only for a task */
 		s64 remaining_tslice = 0;
+                int urgent_events = -1;
 
 		/* check unconsumed urgent tslice */
 		if (se->urgent && se->on_rq)
@@ -623,7 +599,8 @@ static void put_urgent_entity(struct sched_entity *se)
 
 		/* reset urgent tslice */
 		se->urgent_tslice = max_t(s64, 0LL, remaining_tslice);
-		if (se->urgent_tslice > 0) {
+		if (se->urgent_tslice > 0 || 
+                    (urgent_events = atomic_read(&se->pending_urgent_events))) {
 			/* reassign urgentness */
 			se->urgent = se->urgent == URGENT_EXPIRED ?
 						URGENT_TAIL : URGENT_HEAD;
@@ -632,7 +609,7 @@ static void put_urgent_entity(struct sched_entity *se)
 					se,
 					rq_of(cfs_rq_of(se))->cpu, 
 					se->urgent_tslice,
-					urgent_runtime(se),
+					urgent_events, //urgent_runtime(se),
 					se->urgent);
 		}
 		else

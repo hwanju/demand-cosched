@@ -1219,6 +1219,7 @@ struct sched_entity {
         int urgent;
 	u64 urgent_tslice;
 	u64 urgent_sum_exec_runtime;
+        atomic_t pending_urgent_events;
 #endif
 };
 

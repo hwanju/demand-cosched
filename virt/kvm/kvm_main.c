@@ -114,12 +114,12 @@ EXPORT_SYMBOL_GPL(check_lock_holder);
 #endif
 
 #ifdef CONFIG_BALANCE_SCHED
-unsigned long tlb_shootdown_latency_ns;
-module_param_named(tlb_shootdown_latency_ns,
-		   tlb_shootdown_latency_ns, 
+unsigned long tlb_shootdown_cosched_enabled;
+module_param_named(tlb_shootdown_cosched_enabled,
+		   tlb_shootdown_cosched_enabled, 
 		   ulong, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(tlb_shootdown_latency_ns,
- "Latency (in ns) between TLB-shootdown-IPI reception and shootdown completion");
+MODULE_PARM_DESC(tlb_shootdown_cosched_enabled,
+ "TLB-shootdown-IPI based coscheduling");
 unsigned long resched_ipi_unlock_latency_ns;
 module_param_named(resched_ipi_unlock_latency_ns,
 		   resched_ipi_unlock_latency_ns, 
