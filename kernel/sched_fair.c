@@ -107,7 +107,7 @@ unsigned int sysctl_sched_cfs_bandwidth_slice = 5000UL;
 unsigned int sysctl_sched_vm_preempt_mode = 0UL;
 EXPORT_SYMBOL_GPL(sysctl_sched_vm_preempt_mode);
 unsigned int __read_mostly sysctl_sched_urgent_tslice_limit_ns  = 500000UL;
-unsigned int __read_mostly sysctl_sched_urgent_latency_ns       = 24000000UL;
+unsigned int __read_mostly sysctl_sched_urgent_latency_ns       = 12000000UL;
 
 #define URGENT_TAIL	1
 #define URGENT_HEAD	2
@@ -386,7 +386,7 @@ static int can_urgently_preempt(struct sched_entity *left, struct sched_entity *
 
         if (entity_is_task(se))
                 return 1;
-        if (se->vruntime - left->vruntime < sysctl_sched_urgent_latency_ns)
+        if (se->vruntime - left->vruntime <= sysctl_sched_urgent_latency_ns)
                 return 1;
 
         trace_sched_urgent_entity(5, /* fail */
