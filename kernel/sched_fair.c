@@ -591,7 +591,7 @@ static void put_urgent_entity(struct sched_entity *se)
 	/* check whether to reassign urgentness */
 	if (entity_is_task(se)) {	/* calculate only for a task */
 		s64 remaining_tslice = 0;
-                int urgent_events = -1;
+                int uevents = -1;
 
 		/* check unconsumed urgent tslice */
 		if (se->urgent && se->on_rq)
@@ -600,7 +600,8 @@ static void put_urgent_entity(struct sched_entity *se)
 		/* reset urgent tslice */
 		se->urgent_tslice = max_t(s64, 0LL, remaining_tslice);
 		if (se->urgent_tslice > 0 || 
-                    (urgent_events = atomic_read(&se->pending_urgent_events))) {
+                    (se->urgent && 
+		    (uevents = atomic_read(&se->pending_urgent_events)) > 0)) {
 			/* reassign urgentness */
 			se->urgent = se->urgent == URGENT_EXPIRED ?
 						URGENT_TAIL : URGENT_HEAD;
@@ -609,7 +610,7 @@ static void put_urgent_entity(struct sched_entity *se)
 					se,
 					rq_of(cfs_rq_of(se))->cpu, 
 					se->urgent_tslice,
-					urgent_events, //urgent_runtime(se),
+					uevents, //urgent_runtime(se),
 					se->urgent);
 		}
 		else

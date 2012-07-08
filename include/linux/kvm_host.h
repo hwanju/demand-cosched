@@ -788,10 +788,13 @@ extern unsigned long resched_ipi_cosched_tslice_ns;
 /* this function is a hack based on that 0xe1 doesn't occur in Linux 3.2.0 */
 static inline void check_os_type_by_ipi(struct kvm *kvm, u32 vector)
 {
-	/* if os_type is assigned as windows, need not check any more */
-	if (kvm->os_type == KVM_OS_WINDOWS)
+	/* if os_type is decieded, need not check any more */
+	if (kvm->os_type)
 		return;
-	kvm->os_type = vector == 0xe1 ? KVM_OS_WINDOWS : KVM_OS_LINUX; 
+	if (vector == 0xe1)
+		kvm->os_type = KVM_OS_WINDOWS;
+	else if (vector == 0xfd)
+		kvm->os_type = KVM_OS_LINUX;
 }
 static inline int is_resched_ipi(struct kvm *kvm, u32 vector)
 {
