@@ -490,7 +490,7 @@ static void apic_set_eoi(struct kvm_lapic *apic)
         if(tlb_shootdown_cosched_enabled &&
            is_tlb_shootdown_ipi(apic->vcpu->kvm, vector)) {
 		if (apic->vcpu->kvm->os_type == KVM_OS_LINUX) {
-			if(!atomic_dec_return(
+			if(atomic_dec_return(
 				&current->se.pending_urgent_events) < 0)
 				printk("BUG: vec=%x evt=%d\n", vector,
 				atomic_read(&current->se.pending_urgent_events)

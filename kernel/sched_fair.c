@@ -389,6 +389,7 @@ static int can_urgently_preempt(struct sched_entity *left, struct sched_entity *
         if (se->vruntime - left->vruntime <= sysctl_sched_urgent_latency_ns)
                 return 1;
 
+	schedstat_inc(rq_of(cfs_rq_of(se)), urgent_fail);
         trace_sched_urgent_entity(5, /* fail */
 			entity_is_task(se) ? task_of(se) : NULL, 
 			se,
@@ -428,6 +429,11 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 	    se->urgent_sum_exec_runtime < se->prev_sum_exec_runtime)
 		se->urgent_sum_exec_runtime = se->sum_exec_runtime;
 
+	/* if delay is zero or negative, it's event-based,
+	 * so remaining runtime is set by default */
+	if (delay <= 0 && likely(atomic_read(&se->pending_urgent_events)))
+		delay = remaining_urgent_runtime(se);
+
 	/* check if this timer set is the final */
 	if (urgent_runtime(se) + delay >= sysctl_sched_urgent_tslice_limit_ns)
 		se->urgent = URGENT_EXPIRED;
@@ -438,6 +444,7 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 	delay = max_t(s64, 100000LL, delay);
 	delay = min_t(s64, delay, sysctl_sched_urgent_tslice_limit_ns);
 	hrtick_start(rq, delay);
+	schedstat_inc(rq, urgent_timer);
 
 	trace_sched_urgent_entity(9,	/* utm */
 			task_of(se),
@@ -472,6 +479,7 @@ int should_delay_resched(struct task_struct *p)
 		if ((delta = remaining_urgent_tslice(se)) > 0 ||
                     atomic_read(&se->pending_urgent_events)) {
 			mod_urgent_timer(se, delta);
+			schedstat_inc(rq, preempt_delay_timer);
 			ret = 1;
 		}
 	}
@@ -483,8 +491,10 @@ out_trace:
 			ret | p->on_rq << 1 | se->urgent << 2 /* 2bit */ | 
 			!!in_hrtick_handler << 4 |
 			hrtimer_active(&rq->hrtick_timer) << 5);
-	if (ret)
+	if (ret) {
 		clear_tsk_need_resched(p);
+		schedstat_inc(rq, preempt_delay);
+	}
 	return ret;
 }
 static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
@@ -510,6 +520,7 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 	    (remaining_runtime = remaining_urgent_runtime(se)) > 0) {
 		tslice = min_t(u64, remaining_runtime, tslice);
 		mod_urgent_timer(se, tslice);
+		schedstat_inc(rq, mod_urgent_timer);
 	}
 	trace_sched_urgent_entity(8,	/* mod */
 			p, se,
@@ -525,6 +536,7 @@ static void mod_urgent_tslice(struct task_struct *p, u64 tslice)
 int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 {
         struct cfs_rq *cfs_rq = cfs_rq_of(se);
+	struct rq *rq = rq_of(cfs_rq);
 
 	/* if not assigned urgentness yet, enqueue tail.
 	 * this happens only if !sync */
@@ -542,6 +554,7 @@ int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 		if (entity_is_task(se) && cfs_rq->curr == se) {
                         if (tslice)
 			        mod_urgent_tslice(task_of(se), tslice);
+			schedstat_inc(rq, urgent_running);
 			return -1;	/* stop urgent setting from parent */
 		}
 	}
@@ -550,6 +563,7 @@ int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 		if (se->urgent == URGENT_HEAD)
 			list_move(&se->urgent_node, &cfs_rq->urgent_queue);
 
+		schedstat_inc(rq, urgent_queued);
 		trace_sched_urgent_entity(11,	/* ac2 */
 				entity_is_task(se) ? task_of(se) : NULL,
 				se,
@@ -568,6 +582,8 @@ int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 		list_add_tail(&se->urgent_node, &cfs_rq->urgent_queue);
 	else if (se->urgent == URGENT_HEAD)
 		list_add(&se->urgent_node, &cfs_rq->urgent_queue);
+
+	schedstat_inc(rq, urgent_enqueue);
 	trace_sched_urgent_entity(1,	/* enq */
 			entity_is_task(se) ? task_of(se) : NULL,
 			se,
@@ -605,6 +621,7 @@ static void put_urgent_entity(struct sched_entity *se)
 			/* reassign urgentness */
 			se->urgent = se->urgent == URGENT_EXPIRED ?
 						URGENT_TAIL : URGENT_HEAD;
+			schedstat_inc(rq_of(cfs_rq_of(se)), urgent_requeue);
 			trace_sched_urgent_entity(6,	/* req */
 					entity_is_task(se) ? task_of(se) : NULL,
 					se,

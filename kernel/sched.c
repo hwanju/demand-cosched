@@ -720,6 +720,17 @@ struct rq {
 	/* try_to_wake_up() stats */
 	unsigned int ttwu_count;
 	unsigned int ttwu_local;
+#ifdef CONFIG_BALANCE_SCHED
+	unsigned int preempt_delay;
+	unsigned int preempt_delay_timer;
+	unsigned int mod_urgent_timer;
+	unsigned int urgent_timer;
+	unsigned int urgent_running;
+	unsigned int urgent_queued;
+	unsigned int urgent_enqueue;
+	unsigned int urgent_requeue;
+	unsigned int urgent_fail;
+#endif
 #endif
 
 #ifdef CONFIG_SMP
