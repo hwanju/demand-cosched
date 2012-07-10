@@ -3063,6 +3063,20 @@ int check_need_hrtick(struct sched_entity *se)
 		    (left = __pick_first_entity(cfs_rq)) &&
 		    wakeup_preempt_entity(left, se) == -1)
 			need_hrtick = 2;	/* same as 1: 2 for debugging */
+#if 0	/* ver2: following CFS preemption policy */
+		if (!entity_is_task(se) &&	/* do not care intra-VM */
+		    (left = __pick_first_entity(cfs_rq))) {
+			int allowed = wakeup_preempt_entity(left, se);
+			/* preemption not allowed by CFS */
+			if (allowed <= 0) {	
+				/* lag behind, but not enough */
+				if (allowed == 0)
+					set_last_buddy(left);
+				/* same as 1: 2 for debugging */
+				need_hrtick = 2;
+			}
+		}
+#endif
 	}
 	return need_hrtick;
 }
