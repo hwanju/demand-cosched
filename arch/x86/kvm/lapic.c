@@ -613,6 +613,13 @@ static u32 __apic_read(struct kvm_lapic *apic, unsigned int offset)
 	case APIC_TASKPRI:
 		report_tpr_access(apic, false);
 		/* fall thru */
+#ifdef CONFIG_BALANCE_SCHED
+	case APIC_ICR:
+		if (offset == APIC_ICR && ipi_early_preemption_delay &&
+		    resched_ipi_unlock_latency_ns)
+			set_urgent_task(current, resched_ipi_unlock_latency_ns);
+		/* fall thru */
+#endif
 	default:
 		apic_update_ppr(apic);
 		val = apic_get_reg(apic, offset);

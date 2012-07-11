@@ -784,8 +784,9 @@ static inline bool kvm_check_request(int req, struct kvm_vcpu *vcpu)
 #include <asm/irq_vectors.h>
 extern unsigned long tlb_shootdown_cosched_enabled;
 extern unsigned long resched_ipi_unlock_latency_ns;
+extern unsigned long ipi_early_preemption_delay;
 extern unsigned long resched_ipi_cosched_tslice_ns;
-/* this function is a hack based on that 0xe1 doesn't occur in Linux 3.2.0 */
+/* FIXME: it is a *hack* based on that 0xe1 doesn't occur in Linux 3.2.0 */
 static inline void check_os_type_by_ipi(struct kvm *kvm, u32 vector)
 {
 	/* if os_type is decieded, need not check any more */

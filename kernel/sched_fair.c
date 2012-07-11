@@ -563,7 +563,8 @@ int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 		if (se->urgent == URGENT_HEAD)
 			list_move(&se->urgent_node, &cfs_rq->urgent_queue);
 
-		schedstat_inc(rq, urgent_queued);
+		if (entity_is_task(se))
+			schedstat_inc(rq, urgent_queued);
 		trace_sched_urgent_entity(11,	/* ac2 */
 				entity_is_task(se) ? task_of(se) : NULL,
 				se,
@@ -583,7 +584,8 @@ int set_urgent_entity(struct sched_entity *se, u64 tslice, int sync)
 	else if (se->urgent == URGENT_HEAD)
 		list_add(&se->urgent_node, &cfs_rq->urgent_queue);
 
-	schedstat_inc(rq, urgent_enqueue);
+	if (entity_is_task(se))
+		schedstat_inc(rq, urgent_enqueue);
 	trace_sched_urgent_entity(1,	/* enq */
 			entity_is_task(se) ? task_of(se) : NULL,
 			se,
@@ -619,9 +621,14 @@ static void put_urgent_entity(struct sched_entity *se)
                     (se->urgent && 
 		    (uevents = atomic_read(&se->pending_urgent_events)) > 0)) {
 			/* reassign urgentness */
-			se->urgent = se->urgent == URGENT_EXPIRED ?
-						URGENT_TAIL : URGENT_HEAD;
-			schedstat_inc(rq_of(cfs_rq_of(se)), urgent_requeue);
+			if (se->urgent == URGENT_EXPIRED) {
+				se->urgent = URGENT_TAIL;
+				schedstat_inc(rq_of(cfs_rq_of(se)), urgent_requeue_tail);
+			}
+			else {
+				se->urgent = URGENT_HEAD;
+				schedstat_inc(rq_of(cfs_rq_of(se)), urgent_requeue_head);
+			}
 			trace_sched_urgent_entity(6,	/* req */
 					entity_is_task(se) ? task_of(se) : NULL,
 					se,
@@ -1407,6 +1414,8 @@ dequeue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
 #ifdef CONFIG_BALANCE_SCHED
         /* in case of migration, safely delete from ipi pending list */
         if (likely(se->urgent_node.next) && !list_empty(&se->urgent_node)) {
+		if (entity_is_task(se))
+			schedstat_inc(rq_of(cfs_rq), urgent_dequeue);
                 trace_sched_urgent_entity(2, /* deq */
 				entity_is_task(se) ? task_of(se) : NULL, se,
 				se->cfs_rq->rq->cpu, 0, 0, 0);

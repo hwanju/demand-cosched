@@ -134,7 +134,7 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 			src->vcpu->stat.tlb_ipi_sent++;
 	}
         if (irq->ipi == 1 && 
-	    resched_ipi_unlock_latency_ns && 
+	    resched_ipi_unlock_latency_ns && !ipi_early_preemption_delay &&
 	    is_resched_ipi(kvm, irq->vector))
 		set_urgent_task(current, resched_ipi_unlock_latency_ns);
 #endif

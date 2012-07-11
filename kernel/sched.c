@@ -728,7 +728,9 @@ struct rq {
 	unsigned int urgent_running;
 	unsigned int urgent_queued;
 	unsigned int urgent_enqueue;
-	unsigned int urgent_requeue;
+	unsigned int urgent_requeue_tail;
+	unsigned int urgent_requeue_head;
+	unsigned int urgent_dequeue;
 	unsigned int urgent_fail;
 #endif
 #endif

@@ -126,6 +126,12 @@ module_param_named(resched_ipi_unlock_latency_ns,
 		   ulong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(resched_ipi_unlock_latency_ns,
  "Latency (in ns) between reschedule-IPI xmit and guest lock release");
+unsigned long ipi_early_preemption_delay;
+module_param_named(ipi_early_preemption_delay,
+		   ipi_early_preemption_delay, 
+		   ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(ipi_early_preemption_delay,
+ "Early preemption delay on APIC ICR read");
 unsigned long resched_ipi_cosched_tslice_ns;
 module_param_named(resched_ipi_cosched_tslice_ns,
 		   resched_ipi_cosched_tslice_ns, 

@@ -34,11 +34,12 @@ static int show_schedstat(struct seq_file *seq, void *v)
 		    rq->rq_sched_info.run_delay, rq->rq_sched_info.pcount);
 #ifdef CONFIG_BALANCE_SCHED
 		seq_printf(seq,
-		    " %u %u %u %u %u %u %u %u %u",
+		    " %u %u %u %u %u %u %u %u %u %u %u",
 		    rq->preempt_delay, rq->preempt_delay_timer, 
 		    rq->mod_urgent_timer, rq->urgent_timer, rq->urgent_running,
-		    rq->urgent_queued, rq->urgent_enqueue, rq->urgent_requeue,
-		    rq->urgent_fail);
+		    rq->urgent_queued, rq->urgent_enqueue, 
+		    rq->urgent_requeue_tail, rq->urgent_requeue_head,
+		    rq->urgent_dequeue, rq->urgent_fail);
 #endif
 
 		seq_printf(seq, "\n");
