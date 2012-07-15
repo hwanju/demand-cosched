@@ -1631,6 +1631,9 @@ void kvm_vcpu_on_spin(struct kvm_vcpu *me)
 	int pass;
 	int i;
 
+#ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
+	check_lock_holder(me, 0, 0x10);
+#endif
 	/*
 	 * We boost the priority of a VCPU that is runnable but not
 	 * currently running, because it got preempted by something
