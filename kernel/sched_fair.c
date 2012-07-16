@@ -420,6 +420,10 @@ static inline s64 remaining_urgent_runtime(struct sched_entity *se)
 {
 	return sysctl_sched_urgent_tslice_limit_ns - urgent_runtime(se);
 }
+static inline int remaining_urgent_events(struct sched_entity *se)
+{
+        return atomic_read(&se->pending_urgent_events);
+}
 static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 {
 	struct rq *rq = rq_of(cfs_rq_of(se));
@@ -431,7 +435,7 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 
 	/* if delay is zero or negative, it's event-based,
 	 * so remaining runtime is set by default */
-	if (delay <= 0 && likely(atomic_read(&se->pending_urgent_events)))
+	if (delay <= 0 && likely(remaining_urgent_events(se)))
 		delay = remaining_urgent_runtime(se);
 
 	/* check if this timer set is the final */
@@ -451,7 +455,7 @@ static void mod_urgent_timer(struct sched_entity *se, s64 delay)
 			se,
 			cpu_of(rq),
 			delay,
-			atomic_read(&se->pending_urgent_events), //urgent_runtime(se),
+			remaining_urgent_events(se),
 			se->urgent);
 }
 static void update_curr(struct cfs_rq *cfs_rq);
@@ -466,7 +470,7 @@ int should_delay_resched(struct task_struct *p)
 	int in_hrtick_handler = hrtimer_callback_running(&rq->hrtick_timer);
 
 	/* __schedule -> idle_balance path: don't delay */
-	if (!p->on_rq || !se->urgent || in_hrtick_handler)
+	if (!p->on_rq || !se->urgent || in_hrtick_handler || se->ple)
 		goto out_trace;
 
 	if (hrtimer_active(&rq->hrtick_timer)) {
@@ -477,7 +481,7 @@ int should_delay_resched(struct task_struct *p)
 		/* at this time, make sure rq clock is updated */
 		update_curr(cfs_rq);	/* make runtime up-to-date */
 		if ((delta = remaining_urgent_tslice(se)) > 0 ||
-                    atomic_read(&se->pending_urgent_events)) {
+		    remaining_urgent_events(se)) {
 			mod_urgent_timer(se, delta);
 			schedstat_inc(rq, preempt_delay_timer);
 			ret = 1;
@@ -490,7 +494,8 @@ out_trace:
 			urgent_runtime(se),
 			ret | p->on_rq << 1 | se->urgent << 2 /* 2bit */ | 
 			!!in_hrtick_handler << 4 |
-			hrtimer_active(&rq->hrtick_timer) << 5);
+			hrtimer_active(&rq->hrtick_timer) << 5 |
+			se->ple << 6);
 	if (ret) {
 		clear_tsk_need_resched(p);
 		schedstat_inc(rq, preempt_delay);
@@ -617,9 +622,10 @@ static void put_urgent_entity(struct sched_entity *se)
 
 		/* reset urgent tslice */
 		se->urgent_tslice = max_t(s64, 0LL, remaining_tslice);
-		if (se->urgent_tslice > 0 || 
+		if (!se->ple &&
+		    (se->urgent_tslice > 0 || 
                     (se->urgent && 
-		    (uevents = atomic_read(&se->pending_urgent_events)) > 0)) {
+		    (uevents = remaining_urgent_events(se)) > 0))) {
 			/* reassign urgentness */
 			if (se->urgent == URGENT_EXPIRED) {
 				se->urgent = URGENT_TAIL;
@@ -634,7 +640,7 @@ static void put_urgent_entity(struct sched_entity *se)
 					se,
 					rq_of(cfs_rq_of(se))->cpu, 
 					se->urgent_tslice,
-					uevents, //urgent_runtime(se),
+					uevents,
 					se->urgent);
 		}
 		else
@@ -643,6 +649,9 @@ static void put_urgent_entity(struct sched_entity *se)
 	/* forward urgentness bottom-up: for the case of enqueuing at head */
 	if (se->parent)
 		se->parent->urgent = se->urgent;
+
+	se->ple = 0;
+	se->tlb_ipi_sent = 0;
 }
 #endif
 

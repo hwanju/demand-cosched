@@ -138,7 +138,12 @@ module_param_named(resched_ipi_cosched_tslice_ns,
 		   ulong, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(resched_ipi_cosched_tslice_ns,
  "Time slice (in ns) in response to reschedule IPI");
-
+unsigned long ple_aware_ipisched;
+module_param_named(ple_aware_ipisched,
+		   ple_aware_ipisched, 
+		   ulong, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(ple_aware_ipisched,
+ "PLE-aware IPI coscheduling");
 #endif
 
 MODULE_AUTHOR("Qumranet");
@@ -1633,6 +1638,15 @@ void kvm_vcpu_on_spin(struct kvm_vcpu *me)
 
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
 	check_lock_holder(me, 0, 0x10);
+#endif
+#ifdef CONFIG_BALANCE_SCHED
+	if (ple_aware_ipisched) {
+		current->se.ple = 1;
+		if (ple_aware_ipisched == 2 &&
+		    current->se.tlb_ipi_sent &&
+		    tlb_shootdown_cosched_enabled)
+			return;	/* continue busy-wating rather than yielding */
+	}
 #endif
 	/*
 	 * We boost the priority of a VCPU that is runnable but not
