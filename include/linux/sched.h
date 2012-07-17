@@ -1222,6 +1222,8 @@ struct sched_entity {
 	u64 urgent_tslice;
 	u64 urgent_sum_exec_runtime;
         atomic_t pending_urgent_events;
+	int ple;
+	int tlb_ipi_sent;
 #endif
 };
 

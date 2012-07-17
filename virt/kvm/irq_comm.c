@@ -129,11 +129,16 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 	if (irq->ipi == 1) {
 		check_os_type_by_ipi(kvm, irq->vector);
 		if (is_resched_ipi(kvm, irq->vector)) {
-			schedstat_inc(current, se.statistics.nr_resched_ipi_sent);
+#ifdef CONFIG_SCHEDSTATS
+			current->se.statistics.nr_resched_ipi_sent++;
+#endif
 			src->vcpu->stat.resched_ipi_sent++;
 		}
-		else if (is_tlb_shootdown_ipi(kvm, irq->vector))
+		else if (is_tlb_shootdown_ipi(kvm, irq->vector)) {
+			if (ple_aware_ipisched)
+				current->se.tlb_ipi_sent = 1;
 			src->vcpu->stat.tlb_ipi_sent++;
+		}
 	}
         if (irq->ipi == 1 && 
 	    resched_ipi_unlock_latency_ns && !ipi_early_preemption_delay &&
