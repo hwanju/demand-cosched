@@ -1170,6 +1170,8 @@ struct sched_statistics {
 	u64			nr_balance_migration_allowed;
 	u64			nr_failed_migrations_balance;
 	u64			nr_balance_affinity_cleared;
+	/* ipi status */
+	u64			nr_resched_ipi_sent;
 #endif
 };
 #endif

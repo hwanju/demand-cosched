@@ -128,8 +128,10 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
 	/* stat update */
 	if (irq->ipi == 1) {
 		check_os_type_by_ipi(kvm, irq->vector);
-		if (is_resched_ipi(kvm, irq->vector))
+		if (is_resched_ipi(kvm, irq->vector)) {
+			schedstat_inc(current, se.statistics.nr_resched_ipi_sent);
 			src->vcpu->stat.resched_ipi_sent++;
+		}
 		else if (is_tlb_shootdown_ipi(kvm, irq->vector))
 			src->vcpu->stat.tlb_ipi_sent++;
 	}
