@@ -617,7 +617,7 @@ static u32 __apic_read(struct kvm_lapic *apic, unsigned int offset)
 	case APIC_ICR:
 		if (offset == APIC_ICR && ipi_early_preemption_delay &&
 		    resched_ipi_unlock_latency_ns)
-			set_urgent_task(current, resched_ipi_unlock_latency_ns);
+			set_urgent_task(current, resched_ipi_unlock_latency_ns, 0x1);
 		/* fall thru */
 #endif
 	default:

@@ -1187,7 +1187,8 @@ extern unsigned int sysctl_sched_urgent_enabled;
 extern unsigned int sysctl_sched_urgent_tslice_limit_ns;
 extern unsigned int sysctl_sched_urgent_latency_ns;
 
-extern void set_urgent_task(struct task_struct *p, u64 tslice);
+extern void set_urgent_task(struct task_struct *p, u64 tslice, 
+		unsigned int urgent_mask);
 #endif
 
 struct sched_entity {

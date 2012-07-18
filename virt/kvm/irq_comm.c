@@ -107,7 +107,7 @@ static void check_ipisched(struct kvm *kvm, struct kvm_lapic *src,
                         if (event)
                                 atomic_inc(&task->se.pending_urgent_events);
                         if (tslice || event)
-                                set_urgent_task(task, tslice);
+                                set_urgent_task(task, tslice, event ? 0x02 : 0x04);
                         put_task_struct(task);
                 }
         }
@@ -143,7 +143,7 @@ int kvm_irq_delivery_to_apic(struct kvm *kvm, struct kvm_lapic *src,
         if (irq->ipi == 1 && 
 	    resched_ipi_unlock_latency_ns && !ipi_early_preemption_delay &&
 	    is_resched_ipi(kvm, irq->vector))
-		set_urgent_task(current, resched_ipi_unlock_latency_ns);
+		set_urgent_task(current, resched_ipi_unlock_latency_ns, 0x01);
 #endif
 #ifdef CONFIG_PARAVIRT_LOCK_HOLDER_HOST
         if (irq->ipi == 1) 

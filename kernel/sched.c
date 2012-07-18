@@ -9995,14 +9995,16 @@ struct cgroup_subsys cpuacct_subsys = {
 
 #ifdef CONFIG_BALANCE_SCHED
 unsigned int __read_mostly sysctl_sched_urgent_enabled;
-void set_urgent_task(struct task_struct *p, u64 tslice)
+void set_urgent_task(struct task_struct *p, u64 tslice, 
+		unsigned int urgent_mask)
 {
         struct rq *rq;
         unsigned long flags;
 	struct sched_entity *se = &p->se;
         struct task_group *tg = se->cfs_rq->tg;
 	
-	if (!sysctl_sched_urgent_enabled || !tg->ipisched)
+	if (!sysctl_sched_urgent_enabled || 
+	    !(tg->ipisched & urgent_mask))
 		return;
 
         rq = task_rq_lock(p, &flags);
