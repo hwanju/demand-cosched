@@ -1640,6 +1640,9 @@ void kvm_vcpu_on_spin(struct kvm_vcpu *me)
 	check_lock_holder(me, 0, 0x10);
 #endif
 #ifdef CONFIG_BALANCE_SCHED
+#ifdef CONFIG_SCHEDSTATS
+	current->se.statistics.nr_ple++;
+#endif
 	if (ple_aware_ipisched) {
 		current->se.ple = 1;
 		if (ple_aware_ipisched == 2 &&

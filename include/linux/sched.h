@@ -1172,6 +1172,8 @@ struct sched_statistics {
 	u64			nr_balance_affinity_cleared;
 	/* ipi status */
 	u64			nr_resched_ipi_sent;
+	/* others */
+	u64			nr_ple;
 #endif
 };
 #endif

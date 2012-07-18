@@ -460,6 +460,7 @@ void proc_sched_show_task(struct task_struct *p, struct seq_file *m)
 	P(se.statistics.nr_failed_migrations_balance);
 	P(se.statistics.nr_balance_affinity_cleared);
 	P(se.statistics.nr_resched_ipi_sent);
+	P(se.statistics.nr_ple);
 #endif
 
 	{
